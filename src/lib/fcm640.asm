@@ -26,8 +26,8 @@
         .weak
 F640_BUF0       = $40000                ; 128,000 bytes each, 64-byte aligned
 F640_BUF1       = $20000
-F640_SCR0       = $0800                 ; 4000-byte screen RAMs (bank 0)
-F640_SCR1       = $c000
+F640_SCR0       = $12000                ; 4000-byte screen RAMs (any chip RAM: bank 1
+F640_SCR1       = $13000                ; leaves bank 0 to the program)
         .endweak
 
 F640_ROWBYTES   = 80 * 64               ; one row of cells
@@ -90,6 +90,10 @@ f640_init:
         sta ptr0
         lda #>F640_SCR0
         sta ptr0+1
+        lda #`F640_SCR0
+        sta ptr0+2
+        lda #0
+        sta ptr0+3
         lda #<(F640_BUF0 / 64)
         sta tmp4
         lda #>(F640_BUF0 / 64)
@@ -99,6 +103,10 @@ f640_init:
         sta ptr0
         lda #>F640_SCR1
         sta ptr0+1
+        lda #`F640_SCR1
+        sta ptr0+2
+        lda #0
+        sta ptr0+3
         lda #<(F640_BUF1 / 64)
         sta tmp4
         lda #>(F640_BUF1 / 64)
@@ -126,7 +134,7 @@ f640_init:
         sta VIC_CTRL1
         rts
 
-; 2000 words: tmp4, tmp4 + 1, ... at ptr0 (bank 0)
+; 2000 words: tmp4, tmp4 + 1, ... at the 28-bit address in ptr0 (it stays inside its bank)
 l_f640_screen:
         lda #25
         sta tmp0
@@ -134,10 +142,10 @@ l_f640_srow:
         ldx #80
 -       ldz #0
         lda tmp4
-        sta (ptr0),z
+        sta [ptr0],z
         inz
         lda tmp4+1
-        sta (ptr0),z
+        sta [ptr0],z
         inw tmp4
         clc
         lda ptr0
@@ -158,12 +166,14 @@ f640_show:
         sta VIC4_SCRNPTR
         lda l_f640_scr_hi,x
         sta VIC4_SCRNPTR+1
-        lda #0
+        lda l_f640_scr_bk,x
         sta VIC4_SCRNPTR+2
+        lda #0
         sta VIC4_SCRNPTR+3
         rts
 l_f640_scr_lo:  .byte <F640_SCR0, <F640_SCR1
 l_f640_scr_hi:  .byte >F640_SCR0, >F640_SCR1
+l_f640_scr_bk:  .byte `F640_SCR0, `F640_SCR1
 
 ; fill a whole buffer (two DMA fills: 64000 bytes each)
 f640_clear:

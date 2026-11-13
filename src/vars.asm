@@ -10,44 +10,120 @@ ray_from:       .byte 0
 depth:          .byte 0
 cur_d:          .fill 12                ; this cast's incoming direction
 hit_n:          .fill 12
-hit_id:         .byte 0
-hit_chk:        .byte 0
-best_t:         .dword 0
-; origin cache (set_origin)
-sph_L:          .fill 12 * NSPH
-sph_LL:         .fill 4 * NSPH
-; sphere test
+hit_p:          .byte 0                 ; the primitive hit (NO_ID: nothing)
+hit_s:          .byte 0                 ; its face; bit 7 = normal flipped
+hit_t:          .dword 0
+; the primitive being tested: a copy of its first P_HOT bytes
+cp:
+cp_type:        .byte 0
+cp_flags:       .byte 0
+cp_mat:         .byte 0
+                .byte 0
+cp_c:           .fill 12
+cp_r:           .fill 36
+cp_s:           .fill 16
+        .cerror * - cp != P_HOT, "cp layout"
+cpi:            .byte 0
+cp_own:         .byte 0                 ; 1: the ray starts on this primitive
+ol:             .fill 12                ; the ray in its local frame
+dl:             .fill 12
+; its interval
+pv_n:           .byte 0
+pv_t0:          .dword 0
+pv_s0:          .byte 0
+pv_t1:          .dword 0
+pv_s1:          .byte 0
+; tests
+sL:             .fill 12
+sLL:            .dword 0
 tca:            .dword 0
 tt:             .dword 0
 d2:             .dword 0
 thc:            .dword 0
-; plane test
-pl_ady:         .dword 0
-pl_num:         .dword 0
-pl_anum:        .dword 0
-pl_lim:         .dword 0
-pl_t:           .dword 0
-pl_x:           .dword 0
-pl_z:           .dword 0
-; lights
+ta:             .dword 0
+tb:             .dword 0
+tn:             .dword 0
+tf:             .dword 0
+sa:             .byte 0
+sb:             .byte 0
+sn:             .byte 0
+sf:             .byte 0
+slab_h:         .dword 0
+slab_fa:        .byte 0
+sl_o:           .dword 0
+sl_d:           .dword 0
+qa:             .dword 0
+qb:             .dword 0
+qc:             .dword 0
+disc:           .dword 0
+sqd:            .dword 0
+rho0:           .dword 0
+rhod:           .dword 0
+cn_n:           .byte 0
+cn_a0:          .dword 0
+cn_b0:          .dword 0
+cn_a1:          .dword 0
+cn_b1:          .dword 0
+td_n:           .dword 0
+td_d:           .dword 0
+td_an:          .dword 0
+td_ad:          .dword 0
+td_sg:          .byte 0
+; roots and booleans
+rk:             .byte 0
+rpc:            .byte 0
+lsp:            .byte 0
+rb_c:           .fill 12
+rb_r2:          .dword 0
+cb_op:          .byte 0
+cb_tab:         .byte 0
+cb_na:          .byte 0
+cb_nb:          .byte 0
+cb_ia:          .byte 0
+cb_ib:          .byte 0
+cb_in:          .byte 0
+cb_st:          .byte 0
+cb_out:         .byte 0
+cb_len:         .byte 0
+cb_ta:          .dword 0
+cb_tb:          .dword 0
+cb_t0:          .dword 0
+cb_p0:          .byte 0
+cb_s0:          .byte 0
+ev_t:           .dword 0
+ev_p:           .byte 0
+ev_s:           .byte 0
+ivl:            .fill IVL_SIZE * IVL_SLOTS
+; the surface
+pl:             .fill 12
+nl:             .fill 12
+tex:            .fill 48
+; lights (a copy of the light's record)
 li_n:           .byte 0
 li_pos:         .fill 12
+li_col:         .fill 12
+li_fl:          .byte 0
+                .fill 3
+        .cerror * - li_pos != LIGHT_SIZE, "light layout"
 li_v:           .fill 12
 li_r:           .fill 12
-li_di:          .dword 0
-li_sp:          .dword 0
+li_di:          .fill 12
+li_sp:          .fill 12
 li_dt:          .dword 0
 li_st:          .dword 0
 sh_dist:        .dword 0
-; current material (a copy of a mat_tbl record)
+; current material (a copy of a material record)
 cur_mat:
 cm_al:          .fill 16
-cm_dc:          .fill 12
-cm_se:          .word 0
-                .word 0
-        .cerror * - cur_mat != MATREC, "cur_mat layout"
-s_c:            .fill 12
-s_ir:           .dword 0
+cm_c1:          .fill 12
+cm_c2:          .fill 12
+cm_amb:         .fill 12
+cm_ps:          .word 0
+cm_flags:       .byte 0
+                .byte 0
+cm_eta:         .fill 16
+        .cerror * - cur_mat != M_USED, "cur_mat layout"
+cm_dc:          .fill 12                ; the colour at the hit
 ; reflect / refract
 rf_k:           .dword 0
 rf_t:           .dword 0
@@ -60,6 +136,7 @@ rr_t:           .dword 0
 ; general
 tv:             .fill 12
 pv:             .fill 12
+pd3:            .fill 12
 rc:             .fill 12                ; cast's result colour
 ; pixel
 px_x:           .word 0
@@ -79,6 +156,6 @@ fr_hid:         .byte 0
 fr_depth:       .byte 0
 FRAME_SIZE      = * - frame
 fr_sp:          .byte 0
-fr_stack:       .fill FRAME_SIZE * (MAXDEPTH + 1)
-        .cerror FRAME_SIZE * (MAXDEPTH + 1) > 255, "frame stack must fit an 8-bit index"
+fr_stack:       .fill FRAME_SIZE * 5
+        .cerror FRAME_SIZE * 5 > 255, "frame stack must fit an 8-bit index"
 vars_end:

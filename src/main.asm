@@ -21,7 +21,13 @@
         .weak
 DBG_ROWS        = 0                     ; build.bat: set M65DEFS=-D DBG_ROWS=8 ...
 DBG_PASS2       = 1
+DBG_SCENEBIN    = 0                     ; 1: the scene tables from scene.bin (pov.py)
+DBG_LOG         = 0                     ; 1: trace pixel (DBG_PX, DBG_PY) only, logging
+DBG_PX          = 0                     ;    values (trace.asm #LOG) from DBG_LOGBUF
+DBG_PY          = 0
         .endweak
+DBG_LOGBUF      = $0800                 ; up to $15FF
+dbg_lp          = ptr2                  ; the log's next byte (bank 0)
 
 RGB_IMAGE       = $8000000              ; 640 x 200 x 3 bytes, row-major, attic
 
@@ -103,6 +109,22 @@ start:
         jsr f640_palette
         cli
 
+        .if DBG_LOG
+        lda #<DBG_LOGBUF
+        sta dbg_lp
+        lda #>DBG_LOGBUF
+        sta dbg_lp+1
+        lda #<DBG_PX
+        sta px_x
+        lda #>DBG_PX
+        sta px_x+1
+        lda #DBG_PY
+        sta px_y
+        jsr trace_pixel
+        lda #1
+        sta done
+        jmp idle
+        .endif
         jsr render
         ldx #2
 -       lda ticks,x
@@ -289,4 +311,4 @@ cube_b:
 
         .dsection bss
 
-        .cerror * > F640_SCR1, "program overflows into screen RAM 1"
+        .cerror * > $d000, "the program overflows into the I/O area at $D000"

@@ -18,4 +18,11 @@ rc_nx:          .word ?                 ; the next row, at x
 rc_ep:          .word ?
 zp_end:
         .endv
+; trace.asm: record and interval-list pointers (bank 0). Tracing and recolouring never
+; run at the same time, so they share the recolouring's pointers.
+rp              = rc_pc                 ; the root
+lp              = rc_pn                 ; a list or record
+pa              = rc_px                 ; combine: A, B, the result
+pb              = rc_nx
+pd              = rc_ep
         .cerror zp_end > $90, "base page variables overflow into KERNAL space"
