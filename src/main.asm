@@ -11,7 +11,7 @@
 ;   overlay 0  render.asm + trace.asm: trace every pixel, 24-bit to attic, a dithered preview
 ;   overlay 1  recolour.asm: a median-cut palette, Floyd-Steinberg into framebuffer 1
 ;   overlay 2  parse.asm: read SCENE.POV and compile it into the tables
-;   overlay 3  save.asm: the picture to disk as SCENE.BMP
+;   overlay 3  save.asm: the picture to disk as SCENE.IFF (ILBM)
 ;
 ; Debug settings (build time: set M65DEFS=-D DBG_ROWS=8 -D DBG_PASS2=0, then build.bat):
 ;   DBG_ROWS      lines to trace (0 = 200)
@@ -20,7 +20,7 @@
 ;   DBG_LOG       1: trace pixel (DBG_PX, DBG_PY) only, with trace.asm's #LOG on
 ; Results: ticks_render, ticks_recolour (frames); done = 1 traced, 2 recoloured,
 ; 3 saved, $80 the scene didn't parse (parse_err, parse_line), $81 a file is missing,
-; $82 the picture couldn't be saved (sv_err). dbg_save: 0 don't save, 1 8-bit, 2 24-bit too.
+; $82 the picture couldn't be saved (sv_err). dbg_save: 0 = don't save.
 ;=======================================================================================
         .cpu "45gs02"
 
@@ -87,7 +87,7 @@ entry:
         ; harness bytes at fixed addresses (also in the .lbl file)
 dbg_rows:       .byte DBG_ROWS          ; 0 = all 200 lines
 dbg_pass2:      .byte DBG_PASS2         ; 0 = stop after tracing
-dbg_save:       .byte DBG_SAVE          ; 0 = don't save, 1 = 8-bit BMP, 2 = 24-bit as well
+dbg_save:       .byte DBG_SAVE          ; 0 = don't save the picture
 done:           .byte 0
 ticks:          .byte 0, 0, 0           ; frames since the start (IRQ)
 ticks_render:   .byte 0, 0, 0
@@ -226,22 +226,8 @@ _ovl:
         beq idle
         lda #OVL_SAVE
         jsr ovl_load
-        lda #0
-        jsr save_bmp
+        jsr save_iff
         bcs _nosave
-        lda dbg_save
-        cmp #2
-        bcc _saved
-        ldx #0                          ; and the 24-bit one: SCENE24.BMP
--       lda sv_name24,x
-        sta sv_name,x
-        inx
-        cmp #0
-        bne -
-        lda #1
-        jsr save_bmp
-        bcs _nosave
-_saved:
         lda #3
         sta done
         bra idle
@@ -260,8 +246,6 @@ tick:
         bne +
         inc ticks+2
 +       rts
-
-sv_name24:      .null "SCENE24.BMP"
 
 ; ovl_reload: the current overlay again, fresh from attic (after disk calls: the DOS may
 ; have used part of the window)

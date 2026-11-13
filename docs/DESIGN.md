@@ -15,7 +15,7 @@ Phases
 |---|---|---|
 | 1 | Renderer core: the scene read at run time from compiled tables; primitives (sphere, box, cylinder, cone, plane); transforms; booleans; a camera that can turn; coloured lights; a refractive index for each material | in progress |
 | 2 | Scene parser on the MEGA65: the scene language below, read from disk with `kstream` | |
-| 3 | Saving the picture: 8-bit and 24-bit BMP | |
+| 3 | Saving the picture: IFF ILBM | done |
 | 4 | `draw640` (drawing into the 640x200 framebuffer) and the graphical toolkit | |
 | 5 | The modeller | |
 | 6 | Animation | |
@@ -167,7 +167,7 @@ Programs and memory
 One program, `RENDERER65`, with two modes: the modeller and the renderer. When the code no
 longer fits below `$C000`, it moves into overlays loaded into attic at boot and copied into
 an overlay window by DMA (the `deluxepaint65` pattern). Until the modeller exists, the
-program renders `SCENE.POV` from the disk at boot and saves `SCENE.BMP`.
+program renders `SCENE.POV` from the disk at boot and saves `SCENE.IFF`.
 
 | Area | What |
 |---|---|
@@ -181,8 +181,9 @@ program renders `SCENE.POV` from the disk at boot and saves `SCENE.BMP`.
 | `$8100000`... | Modeller: saved screen areas, undo, the scene being edited |
 | `$8200000`... | Animation frames (128,000 bytes each) |
 
-Files on disk are SEQ: `NAME.POV` for scenes, `NAME.BMP` (8-bit, 129,078 bytes) and
-optionally `NAME24.BMP` (24-bit, 384,054 bytes). The BMP's pixels-per-metre fields carry
+Files on disk are SEQ: `NAME.POV` for scenes and `NAME.IFF` for pictures: an ILBM with 8
+bitplanes, ByteRun1 compression, a 256-colour CMAP, a hi-res CAMG and a BMHD aspect of 8:15,
+which carries
 the 1.875 pixel aspect.
 
 The modeller
@@ -225,7 +226,7 @@ Animation (later)
 The scene language has `clock` (0 to 1 across the animation). The modeller sets keyframes on
 an object's position, rotation, scale and colour, and writes them as expressions in `clock`.
 The renderer parses the scene once for each frame, renders it, and either saves each frame
-(`NAME001.BMP`, ...) or keeps it in attic for playback. A playback palette made for all the
+(`NAME001.IFF`, ...) or keeps it in attic for playback. A playback palette made for all the
 frames together avoids flicker between them.
 
 Testing

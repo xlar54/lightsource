@@ -14,16 +14,12 @@ Done
   - Coloured lights, ambient light, a refractive index per material, checker pigments.
   - Bounding spheres.
 - [x] Phase 2: the scene parser on the MEGA65, with overlays.
-- [x] Phase 3: saving 8-bit and 24-bit BMPs.
+- [x] Phase 3: saving the picture as an IFF ILBM (8 planes, ByteRun1, aspect 8:15).
 - [x] Phase 4, part 1: `lib/draw640.asm` (lines, rectangles, text, clipping).
 
 Next
 ----
 
-- [ ] Picture format. Decide whether the default save is IFF ILBM:
-  - 8 planes, ByteRun1, CAMG hi-res, and BMHD aspect `15:8`;
-  - deluxepaint65's ILBM code can be lifted;
-  - keep 24-bit BMP for the true-colour copy.
 - [ ] Phase 4, part 2: the toolkit (resident):
   - GUI palette and mouse pointer (`hwsprite`, `mouse`);
   - an event loop with a debug event queue for the tests;

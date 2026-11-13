@@ -1,19 +1,28 @@
 ;=======================================================================================
-; save.asm - overlay 3: the picture to disk as a Windows BMP (kstream, a SEQ file).
+; save.asm - overlay 3: the picture to disk as an IFF ILBM (kstream, a SEQ file).
 ;
-;   save_bmp       A = 0: 8-bit, framebuffer 0 with the palette in the VIC-IV (129,078 bytes)
-;                  A = 1: 24-bit, the true-colour picture at RGB_IMAGE (384,054 bytes)
-;                  sv_name = the file name (zero-terminated, as typed: upper case). Replaces
-;                  a file of that name. Carry set if it failed: sv_err = the drive's status.
+;   save_iff       framebuffer 0 with the palette in the VIC-IV -> sv_name (zero-terminated,
+;                  as typed: upper case), replacing a file of that name. Carry set if it
+;                  failed: sv_err = the drive's status.
 ;
-; Rows are bottom-up, as BMP wants them. The pixels-per-metre fields carry the display's
-; pixel shape (a 640x200 pixel is 1.875 times taller than wide): 2835 across, 1512 down.
+; FORM ILBM: BMHD (640 x 200, 8 planes, ByteRun1, aspect 8:15 - a 640x200 pixel is 1.875
+; times taller than wide), CMAP (256 colours), CAMG (hi-res), BODY. Each row is cut into
+; its 8 bitplanes (80 bytes each), and each plane's row is compressed by itself.
+; Writing is one pass: kstream can't go back, so a first pass only counts the BODY's size.
 ; Keep this overlay below $C000: the DOS may use $C000-$C3FF while it works.
 ;=======================================================================================
 
-save_bmp:
-        sta sv_24
-        ; remove the old file (if any), then open the new one
+save_iff:
+        ; pass 1: the BODY's size
+        lda #0
+        sta sv_write_on
+        jsr sv_body
+        ldx #2                          ; (sv_size goes on counting the header's bytes)
+-       lda sv_size,x
+        sta sv_bsize,x
+        dex
+        bpl -
+        ; the file
         lda #<sv_name
         ldx #>sv_name
         jsr kst_remove
@@ -21,8 +30,8 @@ save_bmp:
         lda #<sv_name
         ldx #>sv_name
         jsr kst_name_put
-        lda #<sv_write
-        ldx #>sv_write
+        lda #<sv_mode
+        ldx #>sv_mode
         jsr kst_name_raw
         tya
         jsr kst_open
@@ -30,43 +39,145 @@ save_bmp:
         jmp _fail
 +       lda #0
         sta kst_count
-        ; the header: 14 + 40 bytes
-        ldx #0
--       lda sv_hdr8,x
-        ldy sv_24
-        beq +
-        lda sv_hdr24,x
-+       phx
-        jsr sv_put
+        lda #1
+        sta sv_write_on
+        ; FORM size = 4 ("ILBM") + 8 + 20 (BMHD) + 8 + 768 (CMAP) + 8 + 4 (CAMG) + 8 + body
+        ; (+ 1 if the body is odd: chunks are padded to even)
+        lda sv_bsize
+        and #1
+        sta sv_pad
+        clc
+        lda sv_bsize
+        adc #<(4 + 28 + 776 + 12 + 8)
+        sta sv_form
+        lda sv_bsize+1
+        adc #>(4 + 28 + 776 + 12 + 8)
+        sta sv_form+1
+        lda sv_bsize+2
+        adc #0
+        sta sv_form+2
+        clc
+        lda sv_form
+        adc sv_pad
+        sta sv_form
+        bcc +
+        inc sv_form+1
+        bne +
+        inc sv_form+2
++       lda #<sv_form_id
+        ldx #>sv_form_id
+        jsr sv_text4
+        lda #0                          ; size, big-endian
+        jsr sv_out
+        lda sv_form+2
+        jsr sv_out
+        lda sv_form+1
+        jsr sv_out
+        lda sv_form
+        jsr sv_out
+        ldx #0                          ; "ILBM", BMHD, "CMAP" + its size
+-       lda sv_hdr,x
+        phx
+        jsr sv_out
         plx
         inx
-        cpx #54
+        cpx #sv_hdr_len
         bne -
-        lda sv_24
-        bne _rows24
-        ; the palette: 256 x (blue, green, red, 0), nibble-swapped back
+        ; the palette, nibble-swapped back: red, green, blue
         lda #0
         sta sv_i
 -       ldx sv_i
-        lda $d300,x
+        lda $d100,x
         jsr sv_unswap
-        jsr sv_put
+        jsr sv_out
         ldx sv_i
         lda $d200,x
         jsr sv_unswap
-        jsr sv_put
+        jsr sv_out
         ldx sv_i
-        lda $d100,x
+        lda $d300,x
         jsr sv_unswap
-        jsr sv_put
-        lda #0
-        jsr sv_put
+        jsr sv_out
         inc sv_i
         bne -
-        ; 8-bit rows, bottom-up: row y is 80 runs of 8 bytes, 64 apart
-        lda #199
+        ldx #0                          ; CAMG, "BODY"
+-       lda sv_hdr2,x
+        phx
+        jsr sv_out
+        plx
+        inx
+        cpx #sv_hdr2_len
+        bne -
+        lda #0
+        jsr sv_out
+        lda sv_bsize+2
+        jsr sv_out
+        lda sv_bsize+1
+        jsr sv_out
+        lda sv_bsize
+        jsr sv_out
+        ; pass 2: the BODY itself
+        jsr sv_body
+        lda sv_pad
+        beq +
+        lda #0
+        jsr sv_out
++       jsr sv_flush
+        jsr kst_close
+        jsr kst_status                  ; 00 = fine
+        sta sv_err
+        cmp #0
+        bne _bad
+        clc
+        rts
+_fail:
+        jsr kst_status
+        sta sv_err
+_bad:
+        sec
+        rts
+
+; the 4 characters at A/X
+sv_text4:
+        sta tmp6
+        stx tmp6+1
+        ldy #0
+-       lda (tmp6),y
+        phy
+        jsr sv_out
+        ply
+        iny
+        cpy #4
+        bne -
+        rts
+
+;---------------------------------------------------------------------------------------
+; sv_body: every row, top to bottom: its 8 planes, each compressed. sv_size counts the bytes
+; (both passes); they are written only when sv_write_on is set.
+;---------------------------------------------------------------------------------------
+sv_body:
+        lda #0
+        sta sv_size
+        sta sv_size+1
+        sta sv_size+2
         sta sv_y
-_row8:
+_row:
+        jsr sv_planes
+        lda #0
+        sta sv_p
+-       jsr sv_pack
+        inc sv_p
+        lda sv_p
+        cmp #8
+        bne -
+        inc sv_y
+        lda sv_y
+        cmp #200
+        bne _row
+        rts
+
+; row sv_y of framebuffer 0 -> sv_pl: plane p at sv_pl + 80 p, bit 7 = the leftmost pixel
+sv_planes:
         lda sv_y                        ; ptr0 = $40000 + (y >> 3) * 5120 + (y & 7) * 8
         and #7
         asl
@@ -86,19 +197,36 @@ _row8:
         sta ptr0+2
         lda #0
         sta ptr0+3
-        lda #80
-        sta sv_i
+        lda #0
+        sta sv_k                        ; the byte (8 pixels) in each plane's row
 _cell:
         ldz #0
--       lda [ptr0],z
-        phz
-        jsr sv_put
-        plz
+-       lda [ptr0],z                    ; each pixel's bits into the 8 planes' bytes
+        lsr
+        rol sv_b
+        lsr
+        rol sv_b+1
+        lsr
+        rol sv_b+2
+        lsr
+        rol sv_b+3
+        lsr
+        rol sv_b+4
+        lsr
+        rol sv_b+5
+        lsr
+        rol sv_b+6
+        lsr
+        rol sv_b+7
         inz
         cpz #8
         bne -
-        ldz #0
-        clc                             ; next cell: + 64
+        ldx sv_k
+        .for si = 0, si < 8, si += 1
+        lda sv_b+si
+        sta sv_pl+si*80,x
+        .next
+        clc                             ; the next cell: + 64
         lda ptr0
         adc #64
         sta ptr0
@@ -106,100 +234,112 @@ _cell:
         inc ptr0+1
         bne +
         inc ptr0+2
-+       dec sv_i
++       inc sv_k
+        lda sv_k
+        cmp #80
         bne _cell
-        dec sv_y
-        lda sv_y
-        cmp #$ff
-        bne _row8
-        jmp _close
-_rows24:
-        ; 24-bit rows, bottom-up: blue, green, red from RGB_IMAGE (row-major r, g, b)
-        lda #199
-        sta sv_y
-_row24:
-        lda sv_y                        ; ptr0 = RGB_IMAGE + y * 1920
-        sta MULTINA
-        lda #0
-        sta MULTINA+1
-        sta MULTINA+2
-        sta MULTINA+3
-        lda #<1920
-        sta MULTINB
-        lda #>1920
-        sta MULTINB+1
-        lda #0
-        sta MULTINB+2
-        sta MULTINB+3
-        clc
-        lda MULTOUT
-        adc #<RGB_IMAGE
-        sta ptr0
-        lda MULTOUT+1
-        adc #>RGB_IMAGE
-        sta ptr0+1
-        lda MULTOUT+2
-        adc #`RGB_IMAGE
-        sta ptr0+2
-        lda #RGB_IMAGE >> 24
-        sta ptr0+3
-        lda #<640
-        sta sv_n
-        lda #>640
-        sta sv_n+1
-_px:
-        ldz #2
-        lda [ptr0],z
-        jsr sv_put
-        ldz #1
-        lda [ptr0],z
-        jsr sv_put
         ldz #0
-        lda [ptr0],z
-        jsr sv_put
-        clc
-        lda ptr0
-        adc #3
-        sta ptr0
-        bcc +
-        inw ptr0+1
-+       lda sv_n
-        bne +
-        dec sv_n+1
-+       dec sv_n
-        lda sv_n
-        ora sv_n+1
-        bne _px
-        dec sv_y
-        lda sv_y
-        cmp #$ff
-        beq _close
-        jmp _row24
-_close:
-        jsr sv_flush
-        jsr kst_close
-        jsr kst_status                  ; 00 = fine
-        sta sv_err
-        cmp #0
-        bne _bad
-        clc
-        rts
-_fail:
-        jsr kst_status
-        sta sv_err
-_bad:
-        sec
         rts
 
-; A -> the next byte of the file (through KS_BUF, 255 bytes at a time)
-sv_put:
-        ldx kst_count
+; ByteRun1 of plane sv_p's 80 bytes: a run of 3 to 128 equal bytes is (257 - n, byte);
+; anything else is literals (n - 1, n bytes), up to 128, stopping before such a run
+sv_pack:
+        ldx sv_p
+        lda sv_plo,x
+        sta tmp6
+        lda sv_phi,x
+        sta tmp6+1
+        lda #0
+        sta sv_i                        ; i
+_next:
+        lda sv_i
+        cmp #80
+        bne +
+        rts
++       jsr sv_runlen                   ; A = the run of equal bytes at i
+        cmp #3
+        bcc _lit
+        sta sv_n                        ; a repeat: 257 - n, the byte
+        sec
+        lda #1                          ; (257 - n) & 255 = 1 - n
+        sbc sv_n
+        jsr sv_out
+        ldy sv_i
+        lda (tmp6),y
+        jsr sv_out
+        clc
+        lda sv_i
+        adc sv_n
+        sta sv_i
+        bra _next
+_lit:   ; literals from i to k (exclusive): k grows until a run of 3, the end, or 128
+        lda sv_i
+        sta sv_s
+_k:
+        inc sv_i
+        lda sv_i
+        cmp #80
+        beq _emit
+        sec
+        sbc sv_s
+        cmp #128
+        beq _emit
+        jsr sv_runlen
+        cmp #3
+        bcc _k
+_emit:
+        sec                             ; n - 1, then the n bytes
+        lda sv_i
+        sbc sv_s
+        sta sv_n
+        dec a
+        jsr sv_out
+        ldy sv_s
+-       lda (tmp6),y
+        phy
+        jsr sv_out
+        ply
+        iny
+        cpy sv_i
+        bne -
+        bra _next
+
+; A = how many bytes from i on equal the one at i (1 to 128, not past the row)
+sv_runlen:
+        ldy sv_i
+        lda (tmp6),y
+        sta sv_c
+        ldx #1
+-       iny
+        cpy #80
+        beq +
+        lda (tmp6),y
+        cmp sv_c
+        bne +
+        inx
+        cpx #128
+        bne -
++       txa
+        rts
+
+; A -> the file (pass 2) and counted (both passes)
+sv_out:
+        inc sv_size
+        bne +
+        inc sv_size+1
+        bne +
+        inc sv_size+2
++       ldx sv_write_on
+        beq +
+        ldx kst_count                   ; through KS_BUF, 255 bytes at a time
         sta KS_BUF,x
         inx
         stx kst_count
         cpx #255
         bne +
+        phz
         jsr kst_write
+        plz
         lda #0
         sta kst_count
 +       rts
@@ -221,31 +361,54 @@ sv_unswap:
         rol
         rts
 
-sv_write:       .null ",S,W"
-sv_name:        .null "SCENE.BMP"
+sv_mode:        .null ",S,W"
+sv_name:        .null "SCENE.IFF"
                 .fill 16
-sv_24:          .byte 0
+sv_form_id:     .text "FORM"
+; "ILBM", then BMHD (big-endian), then the CMAP chunk's header
+sv_hdr:
+        .text "ILBM"
+        .text "BMHD"
+        .byte 0, 0, 0, 20
+        .byte >640, <640, >200, <200    ; width, height
+        .byte 0, 0, 0, 0                ; x, y
+        .byte 8                         ; planes
+        .byte 0                         ; no mask
+        .byte 1                         ; ByteRun1
+        .byte 0                         ; pad
+        .byte 0, 0                      ; transparent colour
+        .byte 8, 15                     ; x aspect : y aspect (the pixel's shape)
+        .byte >640, <640, >200, <200    ; page width, height
+        .text "CMAP"
+        .byte 0, 0, >768, <768
+sv_hdr_len = * - sv_hdr
+sv_hdr2:
+        .text "CAMG"
+        .byte 0, 0, 0, 4
+        .byte 0, 0, $80, $00            ; HIRES
+        .text "BODY"
+sv_hdr2_len = * - sv_hdr2
+
 sv_err:         .byte 0
+sv_write_on:    .byte 0
+sv_size:        .fill 3
+sv_bsize:       .fill 3                 ; the BODY's size, from pass 1
+sv_form:        .fill 3
+sv_pad:         .byte 0
 sv_i:           .byte 0
+sv_s:           .byte 0
+sv_n:           .byte 0
+sv_c:           .byte 0
+sv_k:           .byte 0
+sv_p:           .byte 0
 sv_y:           .byte 0
-sv_n:           .word 0
+sv_b:           .fill 8
 ; (y >> 3) * 5120 as bits 8-15 and 16-23
 sv_row_lo:      .byte <((range(25) * 5120) >> 8)
 sv_row_hi:      .byte >((range(25) * 5120) >> 8)
-
-BMP_HDR .macro bpp, offset, colours
-        .text "BM"
-        .dword \offset + 640 * 200 * \bpp / 8   ; file size
-        .dword 0
-        .dword \offset                  ; where the pixels start
-        .dword 40                       ; BITMAPINFOHEADER
-        .dword 640, 200                 ; (positive height: bottom-up)
-        .word 1, \bpp
-        .dword 0                        ; no compression
-        .dword 640 * 200 * \bpp / 8
-        .dword 2835, 1512               ; pixels per metre: the 1.875 pixel shape
-        .dword \colours, 0
-.endmacro
-sv_hdr8:        #BMP_HDR 8, 54 + 1024, 256
-sv_hdr24:       #BMP_HDR 24, 54, 0
+; plane p's row at sv_pl + 80 p
+sv_plo:         .byte <(sv_pl + range(8) * 80)
+sv_phi:         .byte >(sv_pl + range(8) * 80)
+        .align 256
+sv_pl:          .fill 640
         .cerror * > $c000, "the save overlay must stay below $C000"

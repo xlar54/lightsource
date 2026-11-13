@@ -17,7 +17,8 @@ What works now:
      attic RAM. The picture is shown as it's drawn, dithered to a fixed colour cube.
   2. **Recolour.** A median-cut palette of 254 colours is made for the picture, and the
      picture is Floyd-Steinberg dithered to it.
-- **Saving:** `SCENE.BMP` (8-bit) and optionally `SCENE24.BMP` (24-bit).
+- **Saving:** `SCENE.IFF`, an IFF ILBM: 8 bitplanes, ByteRun1 compression (about 26 KB for
+  the default scene). Its BMHD aspect of 8:15 makes viewers show the true pixel shape.
 
 Still to come: the modeller (`draw640`, the drawing module it needs, is done), and animation.
 
@@ -30,16 +31,16 @@ Build and run
   - every scene in `scenes/`, with `scenes/default.pov` also written as `SCENE.POV`.
 - `run.bat` builds and starts Xemu.
 
-At boot the program renders `SCENE.POV` and saves `SCENE.BMP`. To render another scene, set
+At boot the program renders `SCENE.POV` and saves `SCENE.IFF`. To render another scene, set
 `M65SCENE` before building, for example `set M65SCENE=scenes\shapes.pov`.
 
-Build-time test settings go in `M65DEFS`, for example `set M65DEFS=-D DBG_ROWS=8 -D DBG_SAVE=2`:
+Build-time test settings go in `M65DEFS`, for example `set M65DEFS=-D DBG_ROWS=8 -D DBG_SAVE=0`:
 
 | Setting | Effect |
 |---|---|
 | `DBG_ROWS` | Lines to trace |
 | `DBG_PASS2=0` | Skip the recolouring |
-| `DBG_SAVE` | 0 don't save, 1 the 8-bit BMP, 2 the 24-bit one as well |
+| `DBG_SAVE=0` | Don't save the picture |
 | `DBG_SCENEBIN=1` | Use tables made by `pov.py` instead of parsing |
 | `DBG_LOG=1` | Trace one pixel with a value log |
 | `DBG_GUITEST=1` | Draw the `draw640` test screen |
@@ -84,7 +85,7 @@ attic; `ovl_load` copies one into the window at `$8000-$CFFF` when it's needed.
 | Overlay 0 | `render.asm`, `trace.asm`, `vars.asm` | Render loop and the tracer: intervals for each primitive, booleans, shading |
 | Overlay 1 | `recolour.asm` | Median-cut palette and Floyd-Steinberg |
 | Overlay 2 | `parse.asm`, `parse2.asm`, `parsev.asm` | The scene language: tokenizer, expressions, objects, transforms, materials, final compile |
-| Overlay 3 | `save.asm` | BMP files |
+| Overlay 3 | `save.asm` | IFF ILBM files |
 
 New library modules:
 
@@ -115,7 +116,7 @@ disk calls after the takeover need it.
 **Testing:** the tools in `private/` (not published) do this:
 - `pov.py` is a Python twin of the parser, and `ref_trace.py` a bit-exact model of the tracer.
 - `rt_test.py` runs the D81 in headless Xemu and compares the compiled tables, the preview,
-  the final palette and pixels, and the saved BMPs against the models, byte for byte.
+  the final palette and pixels, and the saved IFF (decoded by its own reader), byte for byte.
 
 All of these match for the default, shapes and full-syntax test scenes. Nothing has been run
 on a real MEGA65 yet.
