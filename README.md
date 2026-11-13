@@ -1,156 +1,136 @@
 renderer65
 ==========
 
-A ray tracer for the MEGA65, after [ssloy/tinyraytracer](https://github.com/ssloy/tinyraytracer).
-It renders that project's scene: an ivory, a glass, a red rubber and a mirror sphere above a
-checkerboard, with three point lights, shadows, Phong highlights, reflections and refraction.
-The picture is 640x200 in 256 colours.
+A ray tracer for the MEGA65 that reads scenes written in a subset of POV-Ray's scene language.
+It began as a port of [ssloy/tinyraytracer](https://github.com/ssloy/tinyraytracer). The plan
+is a whole system on the MEGA65: a 640x200 graphical modeller, the scene language, rendering,
+and saving the picture (see [docs/DESIGN.md](docs/DESIGN.md)).
 
-It works in two passes:
+What works now:
+- **The scene language:** spheres, boxes, cylinders, cones and planes; `union`, `merge`,
+  `intersection` and `difference`; `translate`, `rotate` and `scale`; checker and plain
+  pigments; Phong finishes, reflection and refraction with a refractive index for each
+  material; coloured lights, a camera that can turn, and `#declare`. The MEGA65 reads the
+  file from disk and compiles it.
+- **Rendering** at 640x200 in 256 colours, in two passes:
+  1. **Trace.** Every pixel is traced in 16.16 fixed point, with the 24-bit colour kept in
+     attic RAM. The picture is shown as it's drawn, dithered to a fixed colour cube.
+  2. **Recolour.** A median-cut palette of 254 colours is made for the picture, and the
+     picture is Floyd-Steinberg dithered to it.
+- **Saving:** `SCENE.BMP` (8-bit) and optionally `SCENE24.BMP` (24-bit).
 
-1. **Trace** (about 83 s in Xemu). Every pixel is traced in 16.16 fixed point. Its 24-bit
-   colour is kept in attic RAM, and it is shown as it is drawn, ordered-dithered to a fixed
-   6x7x6 colour cube.
-2. **Recolour** (about 9 s). A median-cut palette of 254 colours is made for the whole
-   picture. The picture is Floyd-Steinberg dithered to it in the second framebuffer, and both
-   are switched in at one vertical blank.
+Still to come: the modeller (`draw640`, the drawing module it needs, is done), and animation.
 
-Build
------
+Build and run
+-------------
 
-Run `build.bat`. It assembles `src/main.asm` with 64tass and writes `target/renderer65.d81` with
-c1541. There are no assets: the scene is in `src/scene.asm`.
+- `build.bat` assembles everything with 64tass and writes `target/renderer65.d81`. The disk
+  holds:
+  - the program and its overlays;
+  - every scene in `scenes/`, with `scenes/default.pov` also written as `SCENE.POV`.
+- `run.bat` builds and starts Xemu.
 
-For a test build, set `M65DEFS` first, for example `set M65DEFS=-D DBG_ROWS=8 -D DBG_PASS2=0`
-(trace 8 lines, skip the recolouring).
+At boot the program renders `SCENE.POV` and saves `SCENE.BMP`. To render another scene, set
+`M65SCENE` before building, for example `set M65SCENE=scenes\shapes.pov`.
 
-Run
----
+Build-time test settings go in `M65DEFS`, for example `set M65DEFS=-D DBG_ROWS=8 -D DBG_SAVE=2`:
 
-`run.bat` builds the project and starts Xemu with `-autoload`. On a real MEGA65, mount the D81
-and run it; `AUTOBOOT.C65` starts it automatically. There are no controls. When the picture is
-finished it stays on screen; reset to leave.
-
-Editing the scene
------------------
-
-The whole scene is the settings at the top of [`src/scene.asm`](src/scene.asm). Change them,
-run `build.bat`, then `run.bat` (or test it, below). Each setting is one `NAME = value` line:
-
-| Setting | What |
+| Setting | Effect |
 |---|---|
-| `SPH_C`, `SPH_R`, `SPH_M` | Sphere centres `(x, y, z)`, radii, materials: one entry per sphere in each list |
-| `LIGHTS` | Point lights `(x, y, z)`, all white and equally bright |
-| `MAT_AL`, `MAT_DC`, `MAT_SE` | Materials. `MAT_AL` = `(diffuse, specular, reflection, refraction)` weights, `MAT_DC` = diffuse colour `(r, g, b)` from 0 to 1, `MAT_SE` = highlight sharpness (bigger is tighter) |
-| `M_IVORY` ... | Names for the material positions in those lists (0, 1, 2, ...) |
-| `IOR` | Refractive index of every material with a refraction weight (1.5 = glass) |
-| `PLANE_ON`, `PLANE_Y`, `PLANE_XMAX`, `PLANE_ZMIN`, `PLANE_ZMAX` | The checkerboard: on/off, height, and extent (`-XMAX < x < XMAX`, `ZMIN < z < ZMAX`) |
-| `CHECK_A`, `CHECK_B`, `M_PLANE` | The two square colours, and the material whose weights the board uses |
-| `BG` | Sky colour |
-| `CAM`, `FOV` | Camera position, vertical field of view in radians |
-| `MAXDEPTH` | Reflection / refraction bounces, 0 to 4 |
+| `DBG_ROWS` | Lines to trace |
+| `DBG_PASS2=0` | Skip the recolouring |
+| `DBG_SAVE` | 0 don't save, 1 the 8-bit BMP, 2 the 24-bit one as well |
+| `DBG_SCENEBIN=1` | Use tables made by `pov.py` instead of parsing |
+| `DBG_LOG=1` | Trace one pixel with a value log |
+| `DBG_GUITEST=1` | Draw the `draw640` test screen |
 
-Coordinates are the original's: +x is right, +y up, and the camera looks down -z (the
-spheres are at z = -12 to -18).
+The `done` byte reports progress:
 
-**To add a sphere,** add an entry to each of `SPH_C`, `SPH_R` and `SPH_M`.
-
-**To add a material:**
-1. Give it a name with the next number, for example `M_GREEN = 5`.
-2. Add an entry to each of `MAT_AL`, `MAT_DC` and `MAT_SE`.
-
-The build counts the lists itself. It stops with a message if they don't match or a limit is
-passed.
-
-For example, this green sphere sits in front of the red one:
-
-```
-SPH_C   = [..., (4.5, -2.5, -11.0)]
-SPH_R   = [..., 1.5]
-SPH_M   = [..., M_GREEN]
-M_GREEN = 5
-MAT_AL  = [..., (1.2, 0.6, 0.0, 0.0)]       ; matt, with a highlight
-MAT_DC  = [..., (0.1, 0.5, 0.15)]
-MAT_SE  = [..., 30]
-```
-
-**Material recipes**, as albedo `(diffuse, specular, reflection, refraction)`:
-
-| Look | Albedo |
+| `done` | Meaning |
 |---|---|
-| Matt colour | `(1.4, 0.3, 0.0, 0.0)` (the red rubber) |
-| Shiny colour | `(0.9, 0.5, 0.1, 0.0)` (the ivory) |
-| Mirror | `(0.0, 16.0, 0.8, 0.0)` with exponent 1425 |
-| Glass | `(0.0, 0.9, 0.1, 0.8)` |
+| 1 | Traced |
+| 2 | Recoloured |
+| 3 | Saved |
+| `$80` | The scene didn't parse; `parse_err` and `parse_line` say why and where |
+| `$81` | A file is missing |
+| `$82` | The picture couldn't be saved |
 
-Each picture is scaled so that its brightest channel is 255. A very bright highlight
-therefore darkens the rest of the picture, as in the original.
+Scenes
+------
 
-**Limits:**
-- **Spheres:** about 16. Each one adds about 850 bytes of code, and the program must end below
-  `$C000`. The build says so if it doesn't fit.
-- **Other counts:** 20 lights and 8 materials.
-- **Distances:** keep things within about 120 units of each other. The maths is 16.16 fixed point:
-  the largest value is 32767, and squared distances must fit.
-- **What's fixed in the code:**
-  - the camera always looks down -z;
-  - there is one refractive index for all materials;
-  - the board's squares are 2 units;
-  - there is no more than one plane.
-- **Time:** it grows with the work. The default scene takes about 83 s; the 5-sphere example above
-  takes 116 s.
+Scenes are text files in the POV-Ray subset described in [docs/DESIGN.md](docs/DESIGN.md);
+[scenes/default.pov](scenes/default.pov) and [scenes/shapes.pov](scenes/shapes.pov) are
+examples. Every file the system accepts is also valid for POV-Ray itself. To frame a scene the
+same way there, render at 640x375 with `right x*640/375`.
 
-**Testing an edit:** `private/tools/ref_trace.py` reads the same lines from `scene.asm`, so
-there is nothing else to change. `python private\tools\ref_trace.py fixed private\temp\look.png`
-shows the picture in a few seconds, without the MEGA65: look at `look_4x3.png`.
-`python private\tools\rt_test.py --want 2` checks the MEGA65 build against it.
+The limits:
+- 32 primitives, 16 materials, 16 lights and 32 top-level objects.
+- Booleans nested 7 deep.
+- Numbers to 4 decimal places, below 32767.
+- Keep everything within about 120 units of the camera.
+- Only boxes can be scaled unevenly.
+- A texture moves with its object wherever it is written.
 
 Architecture
 ------------
 
-| File | What |
-|---|---|
-| `src/main.asm` | Boot, takeover, the render loop (pixel -> attic RGB -> cube dither), timing (`ticks_render`, `ticks_recolour`, in frames) |
-| `src/lib/fixed.asm` | New library module: 16.16 maths on the 45GS02's 32-bit Q register: `fmul` (signed, from the unsigned hardware multiplier), `fdiv` and `fsqrt` (Newton iteration on the hardware divider), `ppow` (in 0.32), vector macros |
-| `src/scene.asm` | Spheres, lights, materials, written as 64tass expressions (`FX(0.4)`) |
-| `src/trace.asm` | `cast` (recursive, with its own frame stack), the scene and shadow intersections, refraction, primary rays |
-| `src/recolour.asm` | Histogram, median cut, palette means, Floyd-Steinberg with a lazily filled inverse colour map |
-| `src/lib/fcm640.asm` | New library module: 640x200 Full Colour Mode with two framebuffers |
+One assembly makes the resident program and four overlays. `build.bat` writes each section
+to its own file, and `tools/cut.py` trims each one. At boot the overlays are loaded into
+attic; `ovl_load` copies one into the window at `$8000-$CFFF` when it's needed.
 
-Library modules used: `system`, `dma`, `fcm640`, `fixed`.
+| Part | Files | What |
+|---|---|---|
+| Resident | `main.asm`, `scene.asm` | Boot, overlay manager, the compiled scene tables. Library: `system`, `dma`, `loader`, `kstream`, `fcm640`, `fixed`, `draw640` |
+| Overlay 0 | `render.asm`, `trace.asm`, `vars.asm` | Render loop and the tracer: intervals for each primitive, booleans, shading |
+| Overlay 1 | `recolour.asm` | Median-cut palette and Floyd-Steinberg |
+| Overlay 2 | `parse.asm`, `parse2.asm`, `parsev.asm` | The scene language: tokenizer, expressions, objects, transforms, materials, final compile |
+| Overlay 3 | `save.asm` | BMP files |
+
+New library modules:
+
+| Module | What |
+|---|---|
+| `lib/fixed.asm` | 16.16 maths on the Q register |
+| `lib/fcm640.asm` | 640x200 Full Colour Mode. A buffer can be in attic; `f640_copy10` shows it |
+| `lib/draw640.asm` | Lines, rectangles and text in that mode, all clipped |
 
 **Memory:**
 
 | Area | What |
 |---|---|
-| `$40000-$5F3FF` | Framebuffer 0 (the trace and its preview) |
-| `$20000-$3F3FF` | Framebuffer 1 (the recoloured picture), after `rom_unprotect` |
-| `$0800`, `$C000` | The two 4000-byte screen RAMs. The program must end below `$C000` |
-| `$8000000` | The 24-bit image, 384,000 bytes (attic) |
-| `$8060000`... | Recolouring: histogram, colour list, box map, inverse map (attic) |
+| `$2001-$7FFF` | Resident program and scene tables |
+| `$8000-$CFFF` | Overlay window |
+| `$0800-$15FF` | Parser work area (names, primitive definitions, value stack) |
+| `$12000` | Screen RAM |
+| `$14000-$1EFFF` | The scene file's text |
+| `$40000-$5F3FF` | Framebuffer |
+| `$8000000` | 24-bit picture |
+| `$8060000`... | Recolouring's work areas |
+| `$8100000` | The recoloured picture before it's shown |
+| `$8700000` | The overlays |
 
-**Testing:** `private/tools/ref_trace.py` is a bit-exact Python model of the fixed-point tracer,
-and `private/tools/ref_palette.py` models the recolouring. `private/tools/rt_test.py` boots the
-D81 in headless Xemu, waits for the render, dumps memory and compares both framebuffers and the
-palette with the models. All 128,000 pixels and all 254 palette entries match.
+**Keep the ROM intact.** The C65 ROM at `$20000-$3FFFF` must not be overwritten: the KERNAL's
+disk calls after the takeover need it.
 
-Differences from the original
------------------------------
+**Testing:** the tools in `private/` (not published) do this:
+- `pov.py` is a Python twin of the parser, and `ref_trace.py` a bit-exact model of the tracer.
+- `rt_test.py` runs the D81 in headless Xemu and compares the compiled tables, the preview,
+  the final palette and pixels, and the saved BMPs against the models, byte for byte.
 
-* **Resolution and framing:** 640x200 instead of 1024x768. The rays allow for the display's
-  pixel shape: a pixel is 1.875 times taller than wide on a 4:3 PAL screen. The vertical field
-  of view is the original's 60 degrees, so the 16:10 picture shows a little more at the sides.
-* **Fixed point instead of float.** Results match the float version to within 8/255 on all but
-  313 of the 128,000 pixels; the rest are on the glass sphere's edges.
-* **Rays don't hit the surface they leave.** The original avoids that with a 0.001 epsilon,
-  which in fixed point left speckles on the glass and the mirror. Here each ray remembers its
-  object: for that sphere the far root is `2 tca` exactly, and the plane is skipped.
-* **Less work, same picture:**
-  * reflection and refraction rays are traced only when the material's albedo needs them;
-  * shadow rays are skipped when the light would add nothing;
-  * reflected and refracted directions are not normalised again (they are already unit length);
-  * the sphere normal is `(p - c) / r`.
-* **256 colours:** a palette made for the picture, plus error diffusion, instead of 24-bit colour.
+All of these match for the default, shapes and full-syntax test scenes. Nothing has been run
+on a real MEGA65 yet.
+
+Differences from tinyraytracer
+------------------------------
+
+- **Resolution and framing:** 640x200 instead of 1024x768. The rays allow for the PAL pixel
+  shape (1.875 times taller than wide).
+- **Coordinates:** POV-Ray's, left-handed: the scene looks along +z. The default scene's z is
+  negated to match.
+- **Fixed point instead of float.** A ray remembers the primitive it leaves: for that
+  primitive, the root nearest zero is set to zero exactly, so the ray can't hit it again.
+- **The board** is a thin slab (a plane intersected with a box) instead of a rectangle.
+- **256 colours:** a palette made for the picture, with error diffusion.
 
 Bundled tools
 -------------
@@ -163,13 +143,10 @@ The repo root includes two Windows command-line tools that `build.bat` runs:
 | `c1541.exe` (VICE 3.9) | Writes the D81 | [VICE](https://vice-emu.sourceforge.io/) | [GitHub mirror](https://github.com/VICE-Team/svn-mirror) |
 
 These are separate projects by their own authors, distributed under the GNU GPL, and included
-unmodified so that the project builds without installing anything else. Their licences apply to them,
-not to this project.
+unmodified so that the project builds without installing anything else. Their licences apply to
+them, not to this project. `src/font8.asm` is cut from the IBM PC CGA ROM font (public domain),
+by way of `src/tui/tui_font.asm`.
 
-Note: this is a 45GS02 target. `STZ` stores the Z register, not zero; use `LDA #0 / STA`. See
+Note: this is a 45GS02 target. `STZ` stores the Z register, not zero. See
 `docs/MEGA65_NOTES.md` for MEGA65 programming notes, and `.claude/CLAUDE.md` for the short
 list of gotchas.
-
-`tools/` holds only the scripts the build needs (none are used yet). `private/` is gitignored. It
-holds local notes, the library examples, the test tools and models, temporary data and the MEGA65
-book, so none of them are published.

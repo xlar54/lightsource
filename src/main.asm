@@ -34,6 +34,7 @@ DBG_PASS2       = 1
 DBG_SCENEBIN    = 0
 DBG_LOG         = 0
 DBG_SAVE        = 1
+DBG_GUITEST     = 0                     ; 1: just draw the draw640 test screen
 DBG_PX          = 0
 DBG_PY          = 0
         .endweak
@@ -170,6 +171,12 @@ _ovl:
         jsr render_palette
         cli
 
+        .if DBG_GUITEST
+        jsr gui_test
+        lda #1
+        sta done
+        jmp idle
+        .endif
         .if DBG_LOG
         jsr render_pixel
         lda #1
@@ -300,6 +307,11 @@ ovl_name:       .text "OVL0"
         .include "lib/kstream.asm"
         .include "lib/fcm640.asm"
         .include "lib/fixed.asm"
+        .include "lib/draw640.asm"
+        .include "font8.asm"
+        .if DBG_GUITEST
+        .include "guitest.asm"
+        .endif
         .include "scene.asm"
         .dsection bss
         .send res
