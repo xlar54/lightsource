@@ -16,12 +16,16 @@ redraw_all:
         jmp gui_status
 
 draw_views:
+        jsr views_layout
         jsr world_all
         jsr cam_setup
         lda #0
         sta dv_v
--       jsr draw_view
-        inc dv_v
+-       ldx dv_v
+        lda vw_on,x
+        beq +
+        jsr draw_view
++       inc dv_v
         lda dv_v
         cmp #4
         bne -
@@ -924,7 +928,19 @@ cam_setup:
         stq tq
         #BEQZ cm_sin, +
         #FDIV tq, cm_sin, tq            ; 1 / tan = cos / sin
-        #LDIMM 120 * ONE, tv3m
+        sec                             ; times half the camera view's width
+        lda vw_x1l+3
+        sbc vw_x0l+3
+        sta tv3m+2
+        lda vw_x1h+3
+        sbc vw_x0h+3
+        sta tv3m+3
+        lda #0
+        sta tv3m
+        sta tv3m+1
+        ldq tv3m
+        #LSRQ_Q
+        stq tv3m
         #FMUL tq, tv3m, cm_k
         #FMUL cm_k, q_aspect, cm_ky
 +       rts

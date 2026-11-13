@@ -20,15 +20,96 @@ PCOL_A          = 60
 PCOL_B          = 70
 
 ; the views: x0, y0, x1, y1, kind (0 top, 1 front, 2 side, 3 camera)
-vw_x0l:         .byte <0, <240, <0, <240
-vw_x0h:         .byte >0, >240, >0, >240
-vw_x1l:         .byte <239, <479, <239, <479
-vw_x1h:         .byte >239, >479, >239, >479
-vw_y0:          .byte 10, 10, 100, 100
-vw_y1:          .byte 99, 99, 189, 189
-vw_cxl:         .byte <120, <360, <120, <360    ; centres
-vw_cxh:         .byte >120, >360, >120, >360
-vw_cy:          .byte 55, 55, 145, 145
+; the four views' places (views_layout copies them into vw_*, or gives one view the
+; whole area when ms_maxview says so)
+vd_x0:          .word 0, 240, 0, 240
+vd_x1:          .word 239, 479, 239, 479
+vd_y0:          .byte 10, 10, 100, 100
+vd_y1:          .byte 99, 99, 189, 189
+vw_x0l:         .fill 4
+vw_x0h:         .fill 4
+vw_x1l:         .fill 4
+vw_x1h:         .fill 4
+vw_y0:          .fill 4
+vw_y1:          .fill 4
+vw_cxl:         .fill 4                 ; centres
+vw_cxh:         .fill 4
+vw_cy:          .fill 4
+vw_on:          .fill 4                 ; drawn (all four, or the one made large)
+
+views_layout:
+        ldx #0
+_v:
+        lda ms_maxview
+        cmp #$ff
+        beq _small
+        stx tmp0
+        cmp tmp0
+        beq _large
+        lda #0                          ; another view is large: this one is hidden
+        sta vw_on,x
+        bra _next
+_large:
+        lda #1
+        sta vw_on,x
+        lda #<0
+        sta vw_x0l,x
+        lda #>0
+        sta vw_x0h,x
+        lda #<479
+        sta vw_x1l,x
+        lda #>479
+        sta vw_x1h,x
+        lda #10
+        sta vw_y0,x
+        lda #189
+        sta vw_y1,x
+        bra _centre
+_small:
+        lda #1
+        sta vw_on,x
+        txa
+        asl
+        tay
+        lda vd_x0,y
+        sta vw_x0l,x
+        lda vd_x0+1,y
+        sta vw_x0h,x
+        lda vd_x1,y
+        sta vw_x1l,x
+        lda vd_x1+1,y
+        sta vw_x1h,x
+        lda vd_y0,x
+        sta vw_y0,x
+        lda vd_y1,x
+        sta vw_y1,x
+_centre:
+        clc                             ; centre = (x0 + x1 + 1) / 2, (y0 + y1 + 1) / 2
+        lda vw_x0l,x
+        adc vw_x1l,x
+        sta tmp0
+        lda vw_x0h,x
+        adc vw_x1h,x
+        sta tmp1
+        inc tmp0
+        bne +
+        inc tmp1
++       lsr tmp1
+        ror tmp0
+        lda tmp0
+        sta vw_cxl,x
+        lda tmp1
+        sta vw_cxh,x
+        clc
+        lda vw_y0,x
+        adc vw_y1,x
+        ror                             ; (the carry is the 9th bit)
+        sta vw_cy,x
+_next:
+        inx
+        cpx #4
+        bne _v
+        rts
 vw_ha:          .byte 0, 0, 2               ; the world axis across each view
 vw_va:          .byte 2, 1, 1               ; and up
 vw_names:       .word vn_top, vn_front, vn_side, vn_cam
@@ -158,7 +239,9 @@ model_key:
 ; A = the view at ev_x, ev_y -> carry set if one
 view_at:
         ldx #0
--       lda ev_y
+-       lda vw_on,x
+        beq _no
+        lda ev_y
         cmp vw_y0,x
         bcc _no
         lda vw_y1,x
@@ -188,6 +271,33 @@ view_click:
         bcs +
         rts
 +       sta ms_dview
+        ; on its name (the top-left corner): make it large, or the four again
+        tax
+        lda vw_y0,x
+        clc
+        adc #11
+        cmp ev_y
+        bcc _pick
+        sec
+        lda ev_x
+        sbc vw_x0l,x
+        sta tmp0
+        lda ev_x+1
+        sbc vw_x0h,x
+        bne _pick
+        lda tmp0
+        cmp #56
+        bcs _pick
+        lda ms_maxview
+        cmp #$ff
+        beq +
+        lda #$ff                        ; large: back to four
+        sta ms_maxview
+        jmp redraw_all
++       lda ms_dview
+        sta ms_maxview
+        jmp redraw_all
+_pick:
         jsr world_all                   ; every object's place
         ; the nearest thing within 10 pixels of the click: objects' origins, lights, camera
         lda #$ff

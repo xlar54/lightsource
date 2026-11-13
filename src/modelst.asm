@@ -6,6 +6,7 @@ ms_sel:         .byte $ff               ; $00-$1f object, $40+ light, $80 camera
                                         ; material (being edited), $ff nothing
 ms_view:        .fill 3 * 12            ; ortho views: zoom, centre across, centre up
 ms_lscroll:     .byte 0                 ; the list's first row
+ms_maxview:     .byte $ff               ; the view made large, or $ff: all four
 ms_drag:        .byte $ff               ; the view being dragged in
 ms_dview:       .byte 0
 ms_dx:          .word 0

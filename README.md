@@ -38,6 +38,8 @@ tinyraytracer's scene as its document.
 - **Properties** (bottom right): position, rotation (degrees), scale and sizes, and the
   material. Click a number to type a new one (RETURN takes it, ESC leaves it). Click the
   name to rename the object, or the material to step to the next one.
+- **Click a view's name** (its top-left corner) to make it fill the whole view area; click
+  the name again for the four views.
 - **Mouse in the views:** click near an object's centre, a light or the camera to select it.
   Drag to move it in that view's plane.
 - **Menus:**
