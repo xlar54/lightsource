@@ -24,8 +24,9 @@
 ;=======================================================================================
 
         .weak
-F640_BUF0       = $40000                ; 128,000 bytes each, 64-byte aligned
-F640_BUF1       = $20000
+F640_BUF0       = $40000                ; 128,000 bytes each, starting a 64 KB bank
+F640_BUF1       = $20000                ; (any 28-bit address: in attic it can be drawn
+                                        ; into but not shown; f640_copy10 shows it)
 F640_SCR0       = $12000                ; 4000-byte screen RAMs (any chip RAM: bank 1
 F640_SCR1       = $13000                ; leaves bank 0 to the program)
         .endweak
@@ -99,6 +100,7 @@ f640_init:
         lda #>(F640_BUF0 / 64)
         sta tmp4+1
         jsr l_f640_screen
+        .if F640_BUF1 < $60000          ; (buffer 1 in chip RAM: a screen RAM of its own)
         lda #<F640_SCR1
         sta ptr0
         lda #>F640_SCR1
@@ -112,6 +114,7 @@ f640_init:
         lda #>(F640_BUF1 / 64)
         sta tmp4+1
         jsr l_f640_screen
+        .endif
         ; colour RAM: 2 bytes per cell, all zero
         lda #<4000
         sta tmp5
@@ -179,17 +182,20 @@ l_f640_scr_bk:  .byte `F640_SCR0, `F640_SCR1
 f640_clear:
         tax
         lda l_f640_bank,x
+        and #$0f                        ; (the DMA's bank byte: bits 16-19)
         sta tmp6
         lda #<64000
         sta tmp5
         lda #>64000
         sta tmp5+1
+        lda l_f640_mb,x
+        sta tmp7
         lda #<F640_BUF0                 ; (both buffers start on a bank boundary)
         sta tmp4
         lda #>F640_BUF0
         sta tmp4+1
         lda f640_fill
-        ldx #0
+        ldx tmp7
         ldy tmp6
         jsr dma_fill
         lda #<64000
@@ -197,20 +203,50 @@ f640_clear:
         lda #>64000
         sta tmp4+1
         lda f640_fill
-        ldx #0
+        ldx tmp7
         ldy tmp6
         jmp dma_fill
+; each buffer's bits 16-23 (f640_row), bits 16-19 and the megabyte (DMA)
 l_f640_bank:    .byte `F640_BUF0, `F640_BUF1
+l_f640_mb:      .byte F640_BUF0 >> 20, F640_BUF1 >> 20
+l_f640_hi:      .byte F640_BUF0 >> 24, F640_BUF1 >> 24
         .cerror (F640_BUF0 & $ffff) != 0 || (F640_BUF1 & $ffff) != 0, "fcm640 buffers must start a bank"
+
+; buffer 1 -> buffer 0 (two DMA copies of 64,000 bytes)
+f640_copy10:
+        .for l_h = 0, l_h < 2, l_h += 1
+        lda #<(F640_BUF1 + l_h * 64000)
+        sta ptr1
+        lda #>(F640_BUF1 + l_h * 64000)
+        sta ptr1+1
+        lda #`(F640_BUF1 + l_h * 64000)
+        sta ptr1+2
+        lda #(F640_BUF1 + l_h * 64000) >> 24
+        sta ptr1+3
+        lda #<(F640_BUF0 + l_h * 64000)
+        sta ptr2
+        lda #>(F640_BUF0 + l_h * 64000)
+        sta ptr2+1
+        lda #`(F640_BUF0 + l_h * 64000)
+        sta ptr2+2
+        lda #(F640_BUF0 + l_h * 64000) >> 24
+        sta ptr2+3
+        lda #<64000
+        sta tmp5
+        lda #>64000
+        sta tmp5+1
+        jsr dma_copy_far
+        .next
+        rts
 
 f640_row:
         ldx f640_buf
         lda #0
         sta f640_x
         sta f640_ptr
-        sta f640_ptr+3
-        lda #0
         sta f640_ptr+1
+        lda l_f640_hi,x
+        sta f640_ptr+3
         lda l_f640_bank,x
         sta f640_ptr+2
         ; + (y >> 3) * 5120: 5120 = $1400

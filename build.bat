@@ -22,8 +22,18 @@ REM python tools\build_assets.py
 REM if errorlevel 1 exit /b 1
 
 REM M65DEFS: extra 64tass defines for test builds, e.g. set M65DEFS=-D DBG_ROWS=8 -D DBG_PASS2=0
-.\64tass.exe --cbm-prg -C -I src %M65DEFS% src\main.asm -l target\%PROJECT%.lbl -L target\%PROJECT%.lst -o target\%PROJECT%
+REM One assembly, one file per section: the resident program and the overlays (main.asm).
+set TASS=.\64tass.exe -C -I src %M65DEFS% src\main.asm
+%TASS% --flat --output-section=res -l target\%PROJECT%.lbl -L target\%PROJECT%.lst -o target\%PROJECT%
 if errorlevel 1 exit /b 1
+python tools\cut.py target\%PROJECT% 0x1fff
+if errorlevel 1 exit /b 1
+for %%n in (0 1 2) do (
+    %TASS% --flat --output-section=ovl%%n -o target\ovl%%n >nul
+    if errorlevel 1 (echo overlay %%n failed & exit /b 1)
+    python tools\cut.py target\ovl%%n 0x1%%n0000
+    if errorlevel 1 exit /b 1
+)
 
 cd target
 ..\c1541.exe -format "%PROJECT%,01" d81 %PROJECT%.d81 >nul
@@ -32,6 +42,20 @@ if errorlevel 1 (cd .. & exit /b 1)
 if errorlevel 1 (cd .. & exit /b 1)
 ..\c1541.exe -attach %PROJECT%.d81 -write %PROJECT% autoboot.c65 >nul
 if errorlevel 1 (cd .. & exit /b 1)
+for %%n in (0 1 2) do (
+    ..\c1541.exe -attach %PROJECT%.d81 -write ovl%%n ovl%%n >nul
+    if errorlevel 1 (echo failed writing ovl%%n & cd .. & exit /b 1)
+)
+REM the scenes, as SEQ text files. SCENE.POV is the one rendered: scenes\default.pov, or
+REM the file in M65SCENE (a test build: set M65SCENE=scenes\shapes.pov)
+set SCENEPOV=%M65SCENE%
+if "%SCENEPOV%"=="" set SCENEPOV=scenes\default.pov
+..\c1541.exe -attach %PROJECT%.d81 -write ..\%SCENEPOV% "scene.pov,s" >nul
+if errorlevel 1 (cd .. & exit /b 1)
+for %%f in (..\scenes\*.pov) do (
+    ..\c1541.exe -attach %PROJECT%.d81 -write %%f "%%~nxf,s" >nul
+    if errorlevel 1 (echo failed writing %%f & cd .. & exit /b 1)
+)
 REM asset files listed by tools\build_assets.py (written lower case = PETSCII upper case)
 if exist assets\files.txt for /f %%f in (assets\files.txt) do (
     ..\c1541.exe -attach %PROJECT%.d81 -write assets\%%f %%f >nul

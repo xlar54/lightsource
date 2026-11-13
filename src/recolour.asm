@@ -822,9 +822,9 @@ rc_remap:
         lda #1
         sta f640_buf
         lda #0
-        sta px_y
+        sta rc_y
 _row:
-        lda px_y
+        lda rc_y
         sta f640_y
         jsr f640_row
         lda rc_pc
@@ -988,8 +988,8 @@ _ee:    bcs +
         lda rc_pn
         ldx rc_pn+1
         jsr rc_err_clear
-        inc px_y
-        lda px_y
+        inc rc_y
+        lda rc_y
         cmp #200
         beq +
         jmp _row
@@ -1142,7 +1142,9 @@ _cnext:
         rts
 
 ;---------------------------------------------------------------------------------------
-; at the next frame: framebuffer 1 and its palette
+; at the next frame: the picture (built in buffer 1, in attic) into framebuffer 0, with its
+; palette. (Buffer 1 isn't in chip RAM: the C65 ROM at $20000-$3FFFF must stay intact for
+; the KERNAL's disk calls.)
 rc_show:
         lda #<pal_r
         sta f640_pal_r
@@ -1157,9 +1159,8 @@ rc_show:
         lda #>pal_b
         sta f640_pal_b+1
         jsr wait_frame
-        lda #1
-        jsr f640_show
-        jmp f640_palette
+        jsr f640_palette
+        jmp f640_copy10
 
 ; tables
 fs7:
@@ -1218,8 +1219,9 @@ rc_d:           .byte 0, 0, 0
 rc_best:        .byte 0, 0, 0
 rc_bi:          .byte 0
 rc_ev:          .byte 0
+rc_y:           .byte 0                 ; the row (its own: overlays share no variables)
 
-        .section bss
+        .section rbss
 box_s0:         .fill 256
 box_s1:         .fill 256
 box_e0:         .fill 256

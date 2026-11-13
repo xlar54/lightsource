@@ -55,6 +55,7 @@ file with a marker per page, then search for register names such as `MIXREGSEL`,
 | `$40000-$5FFFF` | Free after the takeover; the usual place for framebuffers and boot staging. BASIC65's bitplane graphics live here, and loading through bank 5 overwrites whatever is there (for example sprite shapes at `$5FA00`). |
 
 - Banks 2 and 3 hold the ROM, so a program that keeps BASIC65 resident has chip banks 0, 1, 4 and 5 plus attic.
+- **A framebuffer in `$20000-$3FFFF` (after `rom_unprotect`) wipes the KERNAL and the DOS.** That's fine until the program calls the KERNAL again: the first `kstream` OPEN after the takeover then ran the wiped DOS and hung, with the stack full of BRK frames and the PC in the DOS's `$Cxxx`. renderer65 keeps its second 640x200 buffer in attic instead and DMAs it into the shown one. [Xemu]
 - A 320x200 FCM framebuffer is 64000 bytes and fits one bank. 640x200x8 fits in `$40000-$5F3FF`; 640x400x8 (256 KB) doesn't fit in banks 4-5.
 - Real hardware doesn't clear RAM at power-on; Xemu does. Clear the base page and every uninitialised variable at boot. Test with Xemu `-initattic <8 MB random file>`.
 
@@ -266,6 +267,7 @@ Dan Sanderson's recommended default model:
 - An `asl`/`tax` index wraps past 127 entries: use separate lo/hi tables.
 - Multi-byte `adc`/`sbc`/`rol`/`ror` loops: count with `dey`/`dex`, never a compare, which changes carry.
 - Never keep a loop counter in A/X/Y (or a library `tmp`) across a `jsr` you don't control: use memory or `phx`/`plx`. Make helpers preserve the caller's registers on every path, including the miss path.
+- **`PLA`/`PLX`/`PLY`/`PLZ` set N and Z from the value pulled.** A helper that saves Z around `lda [ptr],z` and ends `plz / rts` returns the flags of Z, not of A: every caller's `beq`/`bne` then tests the wrong thing (renderer65's tokenizer saw end-of-file at the first character). End with `ora #0`.
 - BCD decimal mode works (handy for scores).
 - `bra` (2 bytes) can replace a `jmp` (3 bytes) when patching code in place.
 - The CPU stack can be 16-bit and outside page 1. Put it back on page 1 for KERNAL calls.
@@ -290,6 +292,8 @@ The multiplier's output is live: `MULTOUT` changes as soon as an input does. To 
 
 - **Q-register (32-bit) instructions in 64tass 1.60:** `ldq stq adq sbq cpq anq orq eoq btq inq deq`, with zero-page, absolute and indirect forms; there is no indexed Q form. The shifts (`asl/lsr/rol/ror/asr` on Q) have no mnemonic: emit the `$42 $42` prefix and the 8-bit opcode as bytes (`.byte $42,$42,$0a` = ASLQ Q, `$4a` LSRQ, `$43` ASRQ; `$0e lo hi` = ASLQ abs). `aslq` alone assembles as a label. Q loads and arithmetic set N from bit 31; test for zero with `lda v / ora v+1 / ...` to be safe. [Xemu]
 - 64tass emits the 45GS02's 16-bit relative branches by itself when a branch is out of range, and labels inside a `.macro` are local to each expansion: big unrolled macros are fine.
+- Because a `.macro` is a scope of its own, a macro that branches to a label it's given (`BGTQ a, b, _skip`) can't see the caller's `_local` labels ("not defined symbol"). Write those as `.segment` ... `.endsegment`, which works like a macro without a new scope. Anonymous `+`/`-` passed in work either way.
+- `--cbm-prg` only takes 16-bit addresses. Sections at physical `$100000`+ (overlays with `.logical`) need `--flat`, and `--flat --output-section=X` writes from address 0, not from the section's start: cut the front off afterwards (renderer65's `tools/cut.py`).
 - A bare word on a line is a label, so a mistyped or non-existent no-operand instruction assembles without complaint and does nothing. `tzx` isn't a 45GS02 instruction (use `tza` / `tax`), and the only symptom was wrong behaviour at run time.
 
 - Symbols are **case-insensitive by default** (`tool_fill` clashes with `TOOL_FILL`). `-C` makes them case-sensitive.
@@ -525,6 +529,8 @@ The multiplier's output is live: `MULTOUT` changes as soon as an input does. To 
 - IRQ-resident code (sound engines) can't be swapped out while hooked.
 - Re-DMAing a 4 KB overlay per keystroke is cheap. One-time init code can live in an overlay.
 - [?] An attic mirror path (`$801xxxx`) written back with enhanced DMA corrupted memory once; a CPU copy loop worked.
+- **One assembly for everything** (renderer65): the resident part and every overlay are sections of one source, each overlay at its own physical address (`$100000`, `$110000`, ...) with `.logical` at the window, and `build.bat` writes each section to its own file. Every label is shared, so resident code calls overlay routines by name and nothing goes out of step. The catch: nothing stops one overlay from naming another overlay's variable, whose address is then the current overlay's own code. renderer65's recolouring used the tracer's `px_y` and rewrote itself (all the pixels wrong, 260 times slower). Check for cross-references whenever code moves between overlays.
+- Overlay buffers declared with `.fill` and nothing after them aren't in the file. Zero each overlay's attic slot before loading it, so the window always starts clean.
 
 ---
 
