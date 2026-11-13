@@ -39,6 +39,69 @@ render_pixel:
         .endif
 
 ;---------------------------------------------------------------------------------------
+; render_preview: every 4th pixel of every 2nd line, each as a 4 x 2 block (1/8 of the
+; work), dithered to the cube; nothing kept in attic
+;---------------------------------------------------------------------------------------
+render_preview:
+        lda #0
+        sta fr_sp
+        sta px_y
+        jsr d6_clip_all
+_row:
+        lda #0
+        sta pr_x
+        sta pr_x+1
+_pix:
+        clc                             ; the block's second column
+        lda pr_x
+        adc #1
+        sta px_x
+        lda pr_x+1
+        adc #0
+        sta px_x+1
+        jsr trace_pixel
+        jsr cube_index
+        sta d6_col
+        lda pr_x
+        sta d6_x
+        lda pr_x+1
+        sta d6_x+1
+        clc
+        lda pr_x
+        adc #3
+        sta d6_x1
+        lda pr_x+1
+        adc #0
+        sta d6_x1+1
+        lda px_y
+        sta d6_y
+        inc a
+        sta d6_y1
+        lda #0
+        sta d6_y+1
+        sta d6_y1+1
+        jsr d6_fill
+        clc
+        lda pr_x
+        adc #4
+        sta pr_x
+        bcc +
+        inc pr_x+1
++       lda pr_x
+        cmp #<640
+        bne _pix
+        lda pr_x+1
+        cmp #>640
+        bne _pix
+        inc px_y
+        inc px_y
+        lda px_y
+        cmp #200
+        bne _row
+        rts
+pr_x:           .word 0
+
+;---------------------------------------------------------------------------------------
 ; render: trace every pixel, top to bottom
 ;---------------------------------------------------------------------------------------
 render:

@@ -12,6 +12,8 @@
 ;   overlay 1  recolour.asm: a median-cut palette, Floyd-Steinberg into framebuffer 1
 ;   overlay 2  parse.asm: read SCENE.POV and compile it into the tables
 ;   overlay 3  save.asm: the picture to disk as SCENE.IFF (ILBM)
+;   overlay 4  model*.asm: the modeller (what boot starts)
+;   overlay 5  writer.asm: the document as scene text; .MDL and .POV files
 ;
 ; Debug settings (build time: set M65DEFS=-D DBG_ROWS=8 -D DBG_PASS2=0, then build.bat):
 ;   DBG_ROWS      lines to trace (0 = 200)
@@ -35,6 +37,8 @@ DBG_SCENEBIN    = 0
 DBG_LOG         = 0
 DBG_SAVE        = 1
 DBG_GUITEST     = 0                     ; 1: just draw the draw640 test screen
+DBG_BOOTRENDER  = 0                     ; 1: render SCENE.POV at boot (the tests), not the
+                                        ;    modeller
 DBG_PX          = 0
 DBG_PY          = 0
         .endweak
@@ -53,7 +57,10 @@ OVL_TRACE       = 0
 OVL_RECOLOUR    = 1
 OVL_PARSE       = 2
 OVL_SAVE        = 3
-OVL_COUNT       = 4
+OVL_MODEL       = 4
+OVL_WRITE       = 5
+OVL_COUNT       = 6
+MOUSE_MAX_X     = 639
 
 ; ---- where everything goes -----------------------------------------------------------
         * = $1fff
@@ -67,6 +74,10 @@ OVL_COUNT       = 4
         .dsection ovl2
         * = $130000
         .dsection ovl3
+        * = $140000
+        .dsection ovl4
+        * = $150000
+        .dsection ovl5
 
 ;=======================================================================================
 ; the resident part
@@ -183,6 +194,11 @@ _ovl:
         sta done
         jmp idle
         .endif
+        .if !DBG_BOOTRENDER && !DBG_SCENEBIN
+        lda #OVL_MODEL                  ; the modeller
+        jsr ovl_load
+        jmp model_main
+        .endif
         .if !DBG_SCENEBIN
         lda #OVL_PARSE
         jsr ovl_load
@@ -291,8 +307,16 @@ ovl_name:       .text "OVL0"
         .include "lib/kstream.asm"
         .include "lib/fcm640.asm"
         .include "lib/fixed.asm"
+        .include "lib/fixtrig.asm"
         .include "lib/draw640.asm"
         .include "font8.asm"
+        .include "lib/keyboard.asm"
+        .include "lib/mouse.asm"
+        .include "lib/hwsprite.asm"
+        .include "gui.asm"
+        .include "doc.asm"
+        .include "modelst.asm"
+        .include "modes.asm"
         .if DBG_GUITEST
         .include "guitest.asm"
         .endif
@@ -337,3 +361,20 @@ ovl_name:       .text "OVL0"
         .cerror * > OVL_END, "overlay 3 is too big"
         .endlogical
         .send ovl3
+
+        .section ovl4
+        .word 0
+        .logical OVL_BASE
+        .include "model.asm"
+        .include "doctiny.asm"
+        .cerror * > OVL_END, "overlay 4 is too big"
+        .endlogical
+        .send ovl4
+
+        .section ovl5
+        .word 0
+        .logical OVL_BASE
+        .include "writer.asm"
+        .cerror * > OVL_END, "overlay 5 is too big"
+        .endlogical
+        .send ovl5

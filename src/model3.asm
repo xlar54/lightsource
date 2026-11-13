@@ -1,0 +1,1677 @@
+;=======================================================================================
+; model3.asm - the modeller's panels and commands: the object list, the properties, the
+; menus and what they do; the overlay's variables
+;=======================================================================================
+
+CMD_NEW         = 1
+CMD_OPEN        = 2
+CMD_SAVE        = 3
+CMD_SAVEAS      = 4
+CMD_EXPORT      = 5
+CMD_RENDER      = 6
+CMD_PREVIEW     = 7
+CMD_DELETE      = 10
+CMD_DUP         = 11
+CMD_UP          = 12
+CMD_DOWN        = 13
+CMD_INDENT      = 14
+CMD_OUTDENT     = 15
+CMD_ADD         = 20                    ; + OT_* (20-28); a light is 29
+CMD_ADDLIGHT    = 29
+CMD_MATNEXT     = 30
+CMD_MATPREV     = 31
+CMD_MATNEW      = 32
+CMD_MATEDIT     = 33
+CMD_ZOOMIN      = 40
+CMD_ZOOMOUT     = 41
+CMD_VRESET      = 42
+
+gui_menus:
+        .byte 1
+        .null "File"
+        .byte CMD_NEW
+        .null "New"
+        .byte CMD_OPEN
+        .null "Open..."
+        .byte CMD_SAVE
+        .null "Save"
+        .byte CMD_SAVEAS
+        .null "Save as..."
+        .byte CMD_EXPORT
+        .null "Export POV"
+        .byte CMD_PREVIEW
+        .null "Preview   P"
+        .byte CMD_RENDER
+        .null "Render    R"
+        .byte 0
+        .byte 7
+        .null "Edit"
+        .byte CMD_DELETE
+        .null "Delete  DEL"
+        .byte CMD_DUP
+        .null "Duplicate"
+        .byte CMD_UP
+        .null "Move up"
+        .byte CMD_DOWN
+        .null "Move down"
+        .byte CMD_INDENT
+        .null "Indent"
+        .byte CMD_OUTDENT
+        .null "Outdent"
+        .byte 0
+        .byte 13
+        .null "Add"
+        .byte CMD_ADD + OT_SPHERE
+        .null "Sphere"
+        .byte CMD_ADD + OT_BOX
+        .null "Box"
+        .byte CMD_ADD + OT_CYL
+        .null "Cylinder"
+        .byte CMD_ADD + OT_CONE
+        .null "Cone"
+        .byte CMD_ADD + OT_PLANE
+        .null "Plane"
+        .byte CMD_ADDLIGHT
+        .null "Light"
+        .byte CMD_ADD + OT_UNION
+        .null "Union"
+        .byte CMD_ADD + OT_MERGE
+        .null "Merge"
+        .byte CMD_ADD + OT_INTER
+        .null "Intersection"
+        .byte CMD_ADD + OT_DIFF
+        .null "Difference"
+        .byte 0
+        .byte 18
+        .null "Material"
+        .byte CMD_MATNEXT
+        .null "Next"
+        .byte CMD_MATPREV
+        .null "Previous"
+        .byte CMD_MATNEW
+        .null "New (a copy)"
+        .byte CMD_MATEDIT
+        .null "Edit"
+        .byte 0
+        .byte 28
+        .null "View"
+        .byte CMD_ZOOMIN
+        .null "Zoom in     +"
+        .byte CMD_ZOOMOUT
+        .null "Zoom out    -"
+        .byte CMD_VRESET
+        .null "Reset"
+        .byte 0
+        .byte 0
+
+type_names:     .word tn0, tn1, tn2, tn3, tn4, tn5, tn6, tn7, tn8
+tn0:    .null "Sphere"
+tn1:    .null "Box"
+tn2:    .null "Cylinder"
+tn3:    .null "Cone"
+tn4:    .null "Plane"
+tn5:    .null "Union"
+tn6:    .null "Merge"
+tn7:    .null "Intersection"
+tn8:    .null "Difference"
+
+;=======================================================================================
+; the object list: objects (indented by depth), lights, the camera
+;=======================================================================================
+list_count:                             ; A = entries
+        clc
+        lda doc_nobj
+        adc doc_nlight
+        adc #1
+        rts
+; A = the selection's entry, or $ff
+sel_entry:
+        lda ms_sel
+        cmp #$80
+        bne +
+        clc
+        lda doc_nobj
+        adc doc_nlight
+        rts
++       bcs _none
+        cmp #$40
+        bcc +
+        and #$3f
+        clc
+        adc doc_nobj
++       rts
+_none:  lda #$ff
+        rts
+
+draw_list:
+        jsr d6_clip_all
+        #GXY LIST_X, 10, 639, 117
+        lda #GC_PANEL
+        jsr gui_fill
+        ; keep the selection in view
+        jsr sel_entry
+        cmp #$ff
+        beq +
+        cmp ms_lscroll
+        bcs ++
+        sta ms_lscroll
++       bra _draw
++       sec
+        sbc #LIST_ROWS - 1
+        bcc _draw
+        cmp ms_lscroll
+        bcc _draw
+        sta ms_lscroll
+_draw:
+        lda #0
+        sta dl_r
+_row:
+        clc
+        lda dl_r
+        adc ms_lscroll
+        sta dl_e
+        jsr list_count
+        cmp dl_e
+        bcc _done
+        beq _done
+        lda dl_r                        ; y = LIST_Y0 + 9 r
+        asl
+        asl
+        asl
+        clc
+        adc dl_r
+        adc #LIST_Y0
+        sta dl_y
+        ; the selected row's background
+        jsr sel_entry
+        cmp dl_e
+        bne +
+        lda dl_y
+        sec
+        sbc #1
+        sta d6_y
+        lda #0
+        sta d6_y+1
+        sta d6_y1+1
+        lda dl_y
+        clc
+        adc #7
+        sta d6_y1
+        lda #<LIST_X
+        sta d6_x
+        lda #>LIST_X
+        sta d6_x+1
+        lda #<639
+        sta d6_x1
+        lda #>639
+        sta d6_x1+1
+        lda #GC_SEL
+        jsr gui_fill
++       lda dl_y
+        sta d6_y
+        lda #0
+        sta d6_y+1
+        lda #GC_WHITE
+        sta d6_col
+        lda #$ff
+        sta d6_bg
+        lda #LIST_COL
+        sta d6_tc
+        lda dl_e
+        cmp doc_nobj
+        bcs _nobj
+        tax                             ; an object: indent, name, (its type)
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_DEPTH
+        lda (op),y
+        clc
+        adc d6_tc
+        sta d6_tc
+        clc
+        lda op
+        adc #O_NAME
+        tay
+        lda op+1
+        adc #0
+        tax
+        tya
+        jsr d6_text
+        bra _next
+_nobj:
+        sec
+        sbc doc_nobj
+        cmp doc_nlight
+        bcs _cam
+        pha
+        lda #GC_ORANGE
+        sta d6_col
+        lda #<st_light
+        ldx #>st_light
+        jsr d6_text
+        pla
+        clc
+        adc #'1'
+        jsr d6_char
+        bra _next
+_cam:
+        lda #GC_GREEN
+        sta d6_col
+        lda #<st_camera
+        ldx #>st_camera
+        jsr d6_text
+_next:
+        inc dl_r
+        lda dl_r
+        cmp #LIST_ROWS
+        beq _done
+        jmp _row
+_done:
+        rts
+st_light:       .null "Light "
+st_camera:      .null "Camera"
+
+list_click:
+        lda ev_y
+        sec
+        sbc #LIST_Y0 - 1
+        bcc _r
+        ldx #0
+-       cmp #9
+        bcc +
+        sbc #9
+        inx
+        bra -
++       cpx #LIST_ROWS
+        bcs _r
+        txa
+        clc
+        adc ms_lscroll
+        sta dl_e
+        jsr list_count
+        cmp dl_e
+        bcc _r
+        beq _r
+        lda dl_e                        ; the entry -> the selection
+        cmp doc_nobj
+        bcc _set
+        sec
+        sbc doc_nobj
+        cmp doc_nlight
+        bcs +
+        ora #$40
+        bra _set
++       lda #$80
+_set:   sta ms_sel
+        lda #<st_hello
+        ldx #>st_hello
+        sta ms_msg
+        stx ms_msg+1
+        jmp redraw_all
+_r:     rts
+
+;=======================================================================================
+; the properties: a list of fields for what's selected (props_build), drawn two to a row
+;=======================================================================================
+PK_VAL          = 0                     ; a number (16.16)
+PK_NAME         = 1                     ; a name (11 characters)
+PK_MAT          = 2                     ; the object's material: a click takes the next
+PK_WORD         = 3                     ; a whole number (a word)
+PK_BIT          = 4                     ; bit 0 of a byte: a click flips it
+PK_TEXT         = 5                     ; just text
+
+; PF row, column, kind, label, offset from lp
+PF .macro row, col, kind, label, off
+        ldx pf_n
+        lda #\row
+        sta pf_row,x
+        lda #\col
+        sta pf_col,x
+        lda #\kind
+        sta pf_kind,x
+        lda #<\label
+        sta pf_lbl_lo,x
+        lda #>\label
+        sta pf_lbl_hi,x
+        clc
+        lda lp
+        adc #<(\off)
+        sta pf_adr_lo,x
+        lda lp+1
+        adc #>(\off)
+        sta pf_adr_hi,x
+        inc pf_n
+.endmacro
+
+props_build:
+        lda #0
+        sta pf_n
+        lda ms_sel
+        cmp #$ff
+        bne +
+        rts
++       cmp #$c0
+        bcc +
+        jmp pb_material
++       cmp #$80
+        bne +
+        jmp pb_camera
++       cmp #$40
+        bcc +
+        jmp pb_light
++       tax                             ; an object
+        lda obj_lo,x
+        sta lp
+        lda obj_hi,x
+        sta lp+1
+        #PF 0, PCOL_A, PK_NAME, pl_name, O_NAME
+        #PF 1, PCOL_A, PK_VAL, pl_px, O_POS
+        #PF 2, PCOL_A, PK_VAL, pl_py, O_POS+4
+        #PF 3, PCOL_A, PK_VAL, pl_pz, O_POS+8
+        #PF 1, PCOL_B, PK_VAL, pl_rx, O_ROT
+        #PF 2, PCOL_B, PK_VAL, pl_ry, O_ROT+4
+        #PF 3, PCOL_B, PK_VAL, pl_rz, O_ROT+8
+        #PF 4, PCOL_A, PK_VAL, pl_s, O_SCALE
+        #PF 6, PCOL_A, PK_MAT, pl_mat, O_MAT
+        ldy #O_TYPE
+        lda (lp),y
+        cmp #OT_SPHERE
+        bne +
+        #PF 4, PCOL_B, PK_VAL, pl_r, O_P
+        rts
++       cmp #OT_BOX
+        bne +
+        #PF 4, PCOL_B, PK_VAL, pl_sx, O_P
+        #PF 5, PCOL_A, PK_VAL, pl_sy, O_P+4
+        #PF 5, PCOL_B, PK_VAL, pl_sz, O_P+8
+        rts
++       cmp #OT_CYL
+        bne +
+        #PF 4, PCOL_B, PK_VAL, pl_r, O_P
+        #PF 5, PCOL_A, PK_VAL, pl_h, O_P+4
+        rts
++       cmp #OT_CONE
+        bne +
+        #PF 4, PCOL_B, PK_VAL, pl_r1, O_P
+        #PF 5, PCOL_A, PK_VAL, pl_r2, O_P+4
+        #PF 5, PCOL_B, PK_VAL, pl_h, O_P+8
++       rts
+pb_light:
+        and #$3f
+        tax
+        lda dlight_lo,x
+        sta lp
+        lda dlight_hi,x
+        sta lp+1
+        #PF 1, PCOL_A, PK_VAL, pl_px, DL_POS
+        #PF 2, PCOL_A, PK_VAL, pl_py, DL_POS+4
+        #PF 3, PCOL_A, PK_VAL, pl_pz, DL_POS+8
+        #PF 1, PCOL_B, PK_VAL, pl_cr, DL_COL
+        #PF 2, PCOL_B, PK_VAL, pl_cg, DL_COL+4
+        #PF 3, PCOL_B, PK_VAL, pl_cb, DL_COL+8
+        #PF 4, PCOL_A, PK_BIT, pl_nosh, DL_FLAGS
+        rts
+pb_camera:
+        lda #<doc_cam_loc
+        sta lp
+        lda #>doc_cam_loc
+        sta lp+1
+        #PF 1, PCOL_A, PK_VAL, pl_px, 0
+        #PF 2, PCOL_A, PK_VAL, pl_py, 4
+        #PF 3, PCOL_A, PK_VAL, pl_pz, 8
+        #PF 1, PCOL_B, PK_VAL, pl_lx, 12
+        #PF 2, PCOL_B, PK_VAL, pl_ly, 16
+        #PF 3, PCOL_B, PK_VAL, pl_lz, 20
+        #PF 4, PCOL_A, PK_VAL, pl_ang, 24
+        #PF 5, PCOL_A, PK_VAL, pl_bgr, doc_bg - doc_cam_loc
+        #PF 5, PCOL_B, PK_VAL, pl_bgg, doc_bg - doc_cam_loc + 4
+        #PF 6, PCOL_A, PK_VAL, pl_bgb, doc_bg - doc_cam_loc + 8
+        rts
+pb_material:
+        and #$3f
+        tax
+        lda dmat_lo,x
+        sta lp
+        lda dmat_hi,x
+        sta lp+1
+        #PF 0, PCOL_A, PK_NAME, pl_name, DM_NAME
+        #PF 1, PCOL_A, PK_VAL, pl_cr, DM_COL
+        #PF 2, PCOL_A, PK_VAL, pl_cg, DM_COL+4
+        #PF 3, PCOL_A, PK_VAL, pl_cb, DM_COL+8
+        #PF 1, PCOL_B, PK_VAL, pl_dif, DM_DIFF
+        #PF 2, PCOL_B, PK_VAL, pl_pho, DM_PHONG
+        #PF 3, PCOL_B, PK_WORD, pl_psz, DM_PSIZE
+        #PF 4, PCOL_A, PK_VAL, pl_amb, DM_AMB
+        #PF 4, PCOL_B, PK_VAL, pl_ref, DM_REFL
+        #PF 5, PCOL_A, PK_VAL, pl_trn, DM_TRANS
+        #PF 5, PCOL_B, PK_VAL, pl_ior, DM_IOR
+        #PF 6, PCOL_A, PK_BIT, pl_chk, DM_FLAGS
+        #PF 6, PCOL_B, PK_VAL, pl_csz, DM_CSCALE
+        #PF 7, PCOL_A, PK_VAL, pl_r2, DM_COL2
+        #PF 7, PCOL_B, PK_VAL, pl_g2, DM_COL2+4
+        rts
+
+
+pl_name:        .null "Name "
+pl_px:          .null "X"
+pl_py:          .null "Y"
+pl_pz:          .null "Z"
+pl_rx:          .null "RX"
+pl_ry:          .null "RY"
+pl_rz:          .null "RZ"
+pl_s:           .null "S"
+pl_r:           .null "R"
+pl_r1:          .null "R1"
+pl_r2:          .null "R2"
+pl_g2:          .null "G2"
+pl_h:           .null "H"
+pl_sx:          .null "SX"
+pl_sy:          .null "SY"
+pl_sz:          .null "SZ"
+pl_mat:         .null "Mat "
+pl_cr:          .null "R"
+pl_cg:          .null "G"
+pl_cb:          .null "B"
+pl_lx:          .null "LX"
+pl_ly:          .null "LY"
+pl_lz:          .null "LZ"
+pl_ang:         .null "Ang"
+pl_bgr:         .null "BgR"
+pl_bgg:         .null "BgG"
+pl_bgb:         .null "BgB"
+pl_nosh:        .null "No shadow"
+pl_dif:         .null "Dif"
+pl_pho:         .null "Pho"
+pl_psz:         .null "Siz"
+pl_amb:         .null "Amb"
+pl_ref:         .null "Ref"
+pl_trn:         .null "Trn"
+pl_ior:         .null "IOR"
+pl_chk:         .null "Checker"
+pl_csz:         .null "Sq"
+
+draw_props:
+        jsr d6_clip_all
+        #GXY LIST_X, 118, 639, 189
+        lda #GC_DARK
+        jsr gui_fill
+        jsr props_build
+        ; a heading: what it is
+        lda #GC_LIGHT
+        sta d6_col
+        lda #$ff
+        sta d6_bg
+        jsr props_title
+        lda #0
+        sta dp_i
+_f:
+        lda dp_i
+        cmp pf_n
+        bne +
+        rts
++       tax
+        lda pf_row,x                    ; y = PROP_Y0 + 9 row + 9 (below the heading)
+        sta tmp0
+        asl
+        asl
+        asl
+        clc
+        adc tmp0
+        adc #PROP_Y0
+        sta d6_y
+        lda #0
+        sta d6_y+1
+        lda pf_col,x
+        sta d6_tc
+        lda pf_lbl_lo,x
+        sta dp_p
+        lda pf_lbl_hi,x
+        sta dp_p+1
+        lda #GC_LIGHT
+        sta d6_col
+        lda dp_p
+        ldx dp_p+1
+        jsr d6_text
+        ldx dp_i
+        lda pf_adr_lo,x
+        sta lp
+        lda pf_adr_hi,x
+        sta lp+1
+        lda #GC_WHITE
+        sta d6_col
+        lda pf_kind,x
+        jsr pf_value_text               ; A/X = the value as text
+        jsr d6_text
+        inc dp_i
+        bra _f
+
+; the heading on the properties panel's first row (row 0 is the name: the heading goes
+; on the status of ... ) - here: the type, at the right of row 7
+props_title:
+        rts
+
+; the field (lp, kind A) as text -> A/X
+pf_value_text:
+        cmp #PK_NAME
+        bne +
+        lda lp
+        ldx lp+1
+        rts
++       cmp #PK_MAT
+        bne +
+        ldy #0
+        lda (lp),y
+        bne _mat
+        lda #<st_none
+        ldx #>st_none
+        rts
+_mat:   tax
+        dex
+        clc
+        lda dmat_lo,x
+        adc #DM_NAME
+        pha
+        lda dmat_hi,x
+        adc #0
+        tax
+        pla
+        rts
++       cmp #PK_BIT
+        bne +
+        ldy #0
+        lda (lp),y
+        and #1
+        beq _off
+        lda #<st_on
+        ldx #>st_on
+        rts
+_off:   lda #<st_off
+        ldx #>st_off
+        rts
++       cmp #PK_WORD
+        bne +
+        lda #0                          ; a word, shown as a number
+        sta gf_v
+        sta gf_v+1
+        ldy #0
+        lda (lp),y
+        sta gf_v+2
+        iny
+        lda (lp),y
+        sta gf_v+3
+        lda #0
+        jsr gui_fmt
+        bra _str
++       ldy #0                          ; a 16.16 number, 2 decimals
+-       lda (lp),y
+        sta gf_v,y
+        iny
+        cpy #4
+        bne -
+        lda #2
+        jsr gui_fmt
+_str:   ; " " + the number (right after the label)
+        ldx #0
+        lda #' '
+        sta pv_text
+-       lda gf_str,x
+        sta pv_text+1,x
+        beq +
+        inx
+        bra -
++       lda #<pv_text
+        ldx #>pv_text
+        rts
+st_none:        .null "(none)"
+st_on:          .null " yes"
+st_off:         .null " no"
+
+prop_click:
+        lda ev_y                        ; the row
+        sec
+        sbc #PROP_Y0 - 1
+        bcc _r
+        ldx #0
+-       cmp #9
+        bcc +
+        sbc #9
+        inx
+        bra -
++       stx pc_row
+        lda ev_x+1                      ; the column: A (60-69) or B (70-79)
+        sta tmp0
+        lda ev_x
+        lsr tmp0
+        ror
+        lsr tmp0
+        ror
+        lsr tmp0
+        ror
+        ldx #PCOL_A
+        cmp #PCOL_B
+        bcc +
+        ldx #PCOL_B
++       stx pc_col
+        jsr props_build
+        ldx #0
+_f:     cpx pf_n
+        beq _r
+        lda pf_row,x
+        cmp pc_row
+        bne _n
+        lda pf_kind,x                   ; names and materials take the whole row
+        cmp #PK_NAME
+        beq _hit
+        cmp #PK_MAT
+        beq _hit
+        cmp #PK_BIT
+        beq _hit
+        lda pf_col,x
+        cmp pc_col
+        beq _hit
+_n:     inx
+        bra _f
+_r:     rts
+_hit:
+        stx pc_f
+        lda pf_adr_lo,x
+        sta lp
+        lda pf_adr_hi,x
+        sta lp+1
+        lda pf_kind,x
+        cmp #PK_MAT
+        bne _edit
+        ldy #0                          ; the next material (or none)
+        lda (lp),y
+        clc
+        adc #1
+        cmp doc_nmat
+        beq _setm
+        bcc _setm
+        lda #0
+_setm:  sta (lp),y
+        jmp redraw_all
+_edit:
+        cmp #PK_BIT
+        bne +
+        ldy #0
+        lda (lp),y
+        eor #1
+        sta (lp),y
+        jmp redraw_all
++       cmp #PK_NAME
+        bne _num
+        ldy #0                          ; a name: edit it
+-       lda (lp),y
+        sta ge_buf,y
+        beq +
+        iny
+        cpy #11
+        bne -
+        lda #0
+        sta ge_buf,y
++       lda #<st_pname
+        ldx #>st_pname
+        jsr gui_edit
+        bcs _done
+        ldx pc_f
+        lda pf_adr_lo,x
+        sta lp
+        lda pf_adr_hi,x
+        sta lp+1
+        ldy #0
+-       lda ge_buf,y
+        sta (lp),y
+        beq _done
+        iny
+        cpy #11
+        bne -
+        lda #0
+        sta (lp),y
+_done:  jmp redraw_all
+_num:
+        ; a number: start from its value
+        cmp #PK_WORD
+        bne +
+        lda #0
+        sta gf_v
+        sta gf_v+1
+        ldy #0
+        lda (lp),y
+        sta gf_v+2
+        iny
+        lda (lp),y
+        sta gf_v+3
+        bra ++
++       ldy #0
+-       lda (lp),y
+        sta gf_v,y
+        iny
+        cpy #4
+        bne -
++       lda #$84
+        jsr gui_fmt
+        ldx #0
+-       lda gf_str,x
+        sta ge_buf,x
+        beq +
+        inx
+        bra -
++       ldx pc_f                        ; the prompt: its label and " = "
+        lda pf_lbl_lo,x
+        sta txt_ptr
+        lda pf_lbl_hi,x
+        sta txt_ptr+1
+        ldy #0
+-       lda (txt_ptr),y
+        sta pc_prompt,y
+        beq +
+        iny
+        bra -
++       ldx #0
+-       lda st_eq,x
+        sta pc_prompt,y
+        beq +
+        iny
+        inx
+        bra -
++       lda #<pc_prompt
+        ldx #>pc_prompt
+        jsr gui_edit
+        bcs _done
+        jsr gui_num
+        bcc +
+        lda #<st_notnum
+        ldx #>st_notnum
+        sta ms_msg
+        stx ms_msg+1
+        jmp redraw_all
++       ldx pc_f
+        lda pf_adr_lo,x
+        sta lp
+        lda pf_adr_hi,x
+        sta lp+1
+        lda pf_kind,x
+        cmp #PK_WORD
+        bne +
+        ldy #0                          ; a word: the whole part
+        lda gf_v+2
+        sta (lp),y
+        iny
+        lda gf_v+3
+        sta (lp),y
+        jmp redraw_all
++       ldy #0
+-       lda gf_v,y
+        sta (lp),y
+        iny
+        cpy #4
+        bne -
+        jmp redraw_all
+st_pname:       .null "Name: "
+st_eq:          .null " = "
+st_notnum:      .null "That isn't a number"
+
+;=======================================================================================
+; commands
+;=======================================================================================
+model_cmd:
+        sta mc_cmd
+        cmp #0
+        bne +
+        rts
++       cmp #CMD_NEW
+        bne +
+        jsr model_reset
+        jmp _msg_redraw
++       cmp #CMD_ADDLIGHT
+        bne +
+        jmp cmd_addlight
++       cmp #CMD_ADD
+        bcc +
+        cmp #CMD_ADD + OT_DIFF + 1
+        bcs +
+        jmp cmd_add
++       cmp #CMD_DELETE
+        bne +
+        jmp cmd_delete
++       cmp #CMD_DUP
+        bne +
+        jmp cmd_dup
++       cmp #CMD_UP
+        bne +
+        jmp cmd_up
++       cmp #CMD_DOWN
+        bne +
+        jmp cmd_down
++       cmp #CMD_INDENT
+        bne +
+        lda #1
+        jmp cmd_depth
++       cmp #CMD_OUTDENT
+        bne +
+        lda #$ff
+        jmp cmd_depth
++       cmp #CMD_MATNEXT
+        bne +
+        lda #1
+        jmp cmd_mat
++       cmp #CMD_MATPREV
+        bne +
+        lda #$ff
+        jmp cmd_mat
++       cmp #CMD_MATNEW
+        bne +
+        jmp cmd_matnew
++       cmp #CMD_MATEDIT
+        bne +
+        jmp cmd_matedit
++       cmp #CMD_ZOOMIN
+        bne +
+        lda #<FX(1.5)
+        ldx #>FX(1.5)
+        ldy #`FX(1.5)
+        jmp cmd_zoom
++       cmp #CMD_ZOOMOUT
+        bne +
+        lda #<FX(1 / 1.5)
+        ldx #>FX(1 / 1.5)
+        ldy #`FX(1 / 1.5)
+        jmp cmd_zoom
++       cmp #CMD_VRESET
+        bne +
+        jsr views_reset
+        jmp redraw_all
++       ; files and renders: resident code (other overlays)
+        lda mc_cmd
+        jsr do_command                  ; -> A/X = a message
+        sta ms_msg
+        stx ms_msg+1
+        jsr gui_on
+        jmp redraw_all
+_msg_redraw:
+        lda #<st_hello
+        ldx #>st_hello
+        sta ms_msg
+        stx ms_msg+1
+        jmp redraw_all
+
+; a message A/X, then everything again
+say:
+        sta ms_msg
+        stx ms_msg+1
+        jmp redraw_all
+
+cmd_zoom:
+        sta cz_f
+        stx cz_f+1
+        sty cz_f+2
+        lda #0
+        sta cz_f+3
+        .for si = 0, si < 3, si += 1
+        #FMUL ms_view+si*12, cz_f, ms_view+si*12
+        .next
+        jmp redraw_all
+
+;---------------------------------------------------------------------------------------
+; the outline: subtrees, inserting and removing records
+;---------------------------------------------------------------------------------------
+; A = object -> A = the first object after its subtree
+sub_end:
+        sta se_i
+        tax
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_DEPTH
+        lda (op),y
+        sta se_d
+        ldx se_i
+-       inx
+        cpx doc_nobj
+        bcs +
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        lda (op),y
+        cmp se_d
+        beq +
+        bcs -
++       txa
+        rts
+
+; make room for A records at object ob_at (shifting the rest up)
+obj_open:
+        sta oo_n
+        clc
+        lda doc_nobj
+        adc oo_n
+        cmp #DOC_MAXOBJ + 1
+        bcc +
+        sec                             ; no room
+        rts
++       lda doc_nobj
+        sta oo_i
+-       lda oo_i                        ; from the end: record i -> i + n
+        cmp ob_at
+        beq +
+        dec oo_i
+        lda oo_i
+        tax
+        clc
+        adc oo_n
+        tay
+        jsr obj_copy
+        bra -
++       clc
+        lda doc_nobj
+        adc oo_n
+        sta doc_nobj
+        clc
+        rts
+; remove oo_n records at ob_at
+obj_close:
+        lda ob_at
+        sta oo_i
+-       clc
+        lda oo_i
+        adc oo_n
+        cmp doc_nobj
+        bcs +
+        tax
+        ldy oo_i
+        jsr obj_copy
+        inc oo_i
+        bra -
++       sec
+        lda doc_nobj
+        sbc oo_n
+        sta doc_nobj
+        rts
+; record X -> record Y
+obj_copy:
+        lda obj_lo,x
+        sta pa
+        lda obj_hi,x
+        sta pa+1
+        lda obj_lo,y
+        sta op
+        lda obj_hi,y
+        sta op+1
+        ldy #OBJ_SIZE - 1
+-       lda (pa),y
+        sta (op),y
+        dey
+        bpl -
+        rts
+
+; Add: a primitive or a group. A primitive goes after the selected object's subtree, at
+; its depth (inside it, if it's a group); a group takes the selected object into itself.
+cmd_add:
+        sec
+        lda mc_cmd
+        sbc #CMD_ADD
+        sta ca_t
+        lda ms_sel
+        cmp #DOC_MAXOBJ
+        bcs _end                        ; nothing (or no object) selected: at the end, depth 0
+        sta ca_s
+        tax
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_DEPTH
+        lda (op),y
+        sta ca_d
+        lda ca_t
+        cmp #OT_GROUP
+        bcs _group
+        ldy #O_TYPE
+        lda (op),y
+        cmp #OT_GROUP
+        bcc +
+        inc ca_d                        ; into the selected group
++       lda ca_s
+        jsr sub_end
+        sta ob_at
+        bra _put
+_end:
+        lda doc_nobj
+        sta ob_at
+        lda #0
+        sta ca_d
+        bra _put
+_group:
+        lda ca_s                        ; the group before the selected subtree, which goes
+        sta ob_at                       ; one deeper
+        jsr sub_end
+        sta ca_e
+        lda #1
+        jsr obj_open
+        bcs _full
+        inc ca_e
+        ldx ob_at
+-       inx
+        cpx ca_e
+        bcs +
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_DEPTH
+        lda (op),y
+        inc a
+        sta (op),y
+        bra -
++       bra _fill
+_put:
+        lda #1
+        jsr obj_open
+        bcs _full
+_fill:
+        ldx ob_at                       ; the new record
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #OBJ_SIZE - 1
+        lda #0
+-       sta (op),y
+        dey
+        bpl -
+        ldy #O_TYPE
+        lda ca_t
+        sta (op),y
+        ldy #O_DEPTH
+        lda ca_d
+        sta (op),y
+        ldy #O_MAT                      ; the first material, if there is one
+        lda doc_nmat
+        beq +
+        lda #1
+        sta (op),y
++       lda ca_t                        ; its name: the type's
+        asl
+        tax
+        lda type_names,x
+        sta txt_ptr
+        lda type_names+1,x
+        sta txt_ptr+1
+        ldy #0
+-       lda (txt_ptr),y
+        phy
+        pha
+        tya
+        clc
+        adc #O_NAME
+        tay
+        pla
+        sta (op),y
+        ply
+        cmp #0
+        beq +
+        iny
+        cpy #11
+        bne -
++       ldy #O_SCALE+2                  ; scale 1, at (0, 0, 12), sizes 1 / 2
+        lda #1
+        sta (op),y
+        ldy #O_POS+10
+        lda #12
+        sta (op),y
+        lda ca_t
+        asl
+        asl
+        tax
+        ldy #O_P+2
+        lda add_sizes,x
+        sta (op),y
+        ldy #O_P+6
+        lda add_sizes+1,x
+        sta (op),y
+        ldy #O_P+10
+        lda add_sizes+2,x
+        sta (op),y
+        lda ob_at
+        sta ms_sel
+        lda #<st_added
+        ldx #>st_added
+        jmp say
+_full:
+        lda #<st_full
+        ldx #>st_full
+        jmp say
+; p0, p1, p2 (whole numbers) for each type
+add_sizes:      .byte 1, 0, 0, 0,  2, 2, 2, 0,  1, 2, 0, 0,  1, 0, 2, 0,  0, 0, 0, 0
+                .byte 0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0
+st_added:       .null "Added: give it a place in the views or the panel"
+st_full:        .null "No room for more (32 objects)"
+
+cmd_addlight:
+        lda doc_nlight
+        cmp #DOC_MAXLIGHT
+        bcs _full
+        tax
+        inc doc_nlight
+        lda dlight_lo,x
+        sta op
+        lda dlight_hi,x
+        sta op+1
+        ldy #DLIGHT_SIZE - 1
+-       lda new_light,y
+        sta (op),y
+        dey
+        bpl -
+        txa
+        ora #$40
+        sta ms_sel
+        lda #<st_added
+        ldx #>st_added
+        jmp say
+_full:  lda #<st_lfull
+        ldx #>st_lfull
+        jmp say
+st_lfull:       .null "No room for more lights (8)"
+new_light:      #DLIT (10, 20, -10), (1, 1, 1), 0
+
+cmd_delete:
+        lda ms_sel
+        cmp #DOC_MAXOBJ
+        bcs _light
+        sta ob_at
+        jsr sub_end
+        sec
+        sbc ob_at
+        sta oo_n
+        jsr obj_close
+        lda #$ff
+        sta ms_sel
+        lda #<st_deleted
+        ldx #>st_deleted
+        jmp say
+_light:
+        cmp #$40
+        bcc _r
+        cmp #$80
+        bcs _r
+        and #$3f
+        sta oo_i
+-       lda oo_i                        ; the lights after it move down
+        clc
+        adc #1
+        cmp doc_nlight
+        bcs +
+        tax
+        lda dlight_lo,x
+        sta pa
+        lda dlight_hi,x
+        sta pa+1
+        ldx oo_i
+        lda dlight_lo,x
+        sta op
+        lda dlight_hi,x
+        sta op+1
+        ldy #DLIGHT_SIZE - 1
+-       lda (pa),y
+        sta (op),y
+        dey
+        bpl -
+        inc oo_i
+        bra --
++       dec doc_nlight
+        lda #$ff
+        sta ms_sel
+        lda #<st_deleted
+        ldx #>st_deleted
+        jmp say
+_r:     rts
+st_deleted:     .null "Deleted"
+
+cmd_dup:
+        lda ms_sel
+        cmp #DOC_MAXOBJ
+        bcs _r
+        sta ca_s
+        jsr sub_end
+        sta ob_at
+        sec
+        sbc ca_s
+        sta ca_n
+        jsr obj_open                    ; (A = how many)
+        bcs _full
+        lda #0
+        sta ca_k
+-       clc
+        lda ca_s
+        adc ca_k
+        tax
+        clc
+        lda ob_at
+        adc ca_k
+        tay
+        jsr obj_copy
+        inc ca_k
+        lda ca_k
+        cmp ca_n
+        bne -
+        lda ob_at
+        sta ms_sel
+        lda #<st_dup
+        ldx #>st_dup
+        jmp say
+_full:  lda #<st_full
+        ldx #>st_full
+        jmp say
+_r:     rts
+st_dup:         .null "Duplicated"
+
+; Move up / down: an object with no children swaps with its neighbour of the same depth
+cmd_up:
+        lda ms_sel
+        beq _r
+        cmp #DOC_MAXOBJ
+        bcs _r
+        sta ca_s
+        sec
+        sbc #1
+        sta ca_e
+        jmp swap_sel
+_r:     rts
+cmd_down:
+        lda ms_sel
+        cmp #DOC_MAXOBJ
+        bcs _r
+        sta ca_s
+        clc
+        adc #1
+        cmp doc_nobj
+        bcs _r
+        sta ca_e
+        jmp swap_sel
+_r:     rts
+; swap objects ca_s and ca_e (if neither is a group and they're at the same depth)
+swap_sel:
+        lda #0
+        sta ca_t
+        ldx ca_s
+        jsr _info
+        sta ca_d
+        ldx ca_e
+        jsr _info
+        cmp ca_d
+        bne _no
+        lda ca_t
+        bne _no
+        ldx ca_s                        ; ca_s -> spare (record DOC_MAXOBJ - 1 is ...):
+        lda obj_lo,x                    ; swap through the copy buffer
+        sta pa
+        lda obj_hi,x
+        sta pa+1
+        ldy #OBJ_SIZE - 1
+-       lda (pa),y
+        sta sw_buf,y
+        dey
+        bpl -
+        ldx ca_e
+        ldy ca_s
+        jsr obj_copy
+        ldx ca_e
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #OBJ_SIZE - 1
+-       lda sw_buf,y
+        sta (op),y
+        dey
+        bpl -
+        lda ca_e
+        sta ms_sel
+        jmp redraw_all
+_no:    lda #<st_cantmove
+        ldx #>st_cantmove
+        jmp say
+_info:  ; A = depth of X; ca_t |= 1 if it's a group
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_TYPE
+        lda (op),y
+        cmp #OT_GROUP
+        lda #0
+        rol
+        ora ca_t
+        sta ca_t
+        ldy #O_DEPTH
+        lda (op),y
+        rts
+st_cantmove:    .null "Only an object with no parts moves past one at its depth"
+
+; Indent (A = 1) / Outdent (A = $ff): the selected subtree one deeper / shallower
+cmd_depth:
+        sta cd_dir
+        lda ms_sel
+        cmp #DOC_MAXOBJ
+        bcs _r
+        sta ca_s
+        tax
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_DEPTH
+        lda (op),y
+        sta ca_d
+        lda cd_dir
+        bmi _out
+        ; deeper: only if the object before it is a group at this depth (or deeper inside one)
+        lda ca_s
+        beq _no
+        ldx ca_s
+        dex
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_DEPTH
+        lda (op),y
+        sta ca_e
+        ldy #O_TYPE
+        lda (op),y
+        cmp #OT_GROUP
+        lda ca_e
+        adc #0                          ; (+1 if a group)
+        cmp ca_d
+        beq _no
+        bcc _no
+        bra _go
+_out:
+        lda ca_d
+        beq _no
+_go:
+        lda ca_s
+        jsr sub_end
+        sta ca_e
+        ldx ca_s
+-       lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_DEPTH
+        clc
+        lda (op),y
+        adc cd_dir
+        sta (op),y
+        inx
+        cpx ca_e
+        bne -
+        jmp redraw_all
+_no:    lda #<st_cantdepth
+        ldx #>st_cantdepth
+        jmp say
+_r:     rts
+st_cantdepth:   .null "It can only go into a group just above it, or out of one"
+
+; Material: next / previous (A = 1 / $ff) for the selected object
+cmd_mat:
+        sta cd_dir
+        lda ms_sel
+        cmp #DOC_MAXOBJ
+        bcs _r
+        tax
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_MAT
+        clc
+        lda (op),y
+        adc cd_dir
+        bpl +
+        lda doc_nmat                    ; below none: the last
++       cmp doc_nmat
+        beq +
+        bcc +
+        lda #0
++       sta (op),y
+        jmp redraw_all
+_r:     rts
+
+; Material: New - a copy of the selected object's (or the first), given to it
+cmd_matnew:
+        lda doc_nmat
+        cmp #DOC_MAXMAT
+        bcs _full
+        sta ca_k
+        inc doc_nmat
+        ldx #0
+        lda ms_sel
+        cmp #DOC_MAXOBJ
+        bcs +
+        tax
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_MAT
+        lda (op),y
+        beq +
+        tax
+        dex
++       lda dmat_lo,x                   ; copy material X to the new one
+        sta pa
+        lda dmat_hi,x
+        sta pa+1
+        ldx ca_k
+        lda dmat_lo,x
+        sta lp
+        lda dmat_hi,x
+        sta lp+1
+        ldy #DMAT_SIZE - 1
+-       lda (pa),y
+        sta (lp),y
+        dey
+        bpl -
+        ldy #DM_NAME                    ; named "New N"
+        ldx #0
+-       lda st_newmat,x
+        sta (lp),y
+        beq +
+        iny
+        inx
+        bra -
++       lda ca_k
+        clc
+        adc #'1'
+        dey
+        sta (lp),y
+        lda ms_sel
+        cmp #DOC_MAXOBJ
+        bcs +
+        ldy #O_MAT
+        lda ca_k
+        clc
+        adc #1
+        sta (op),y
++       lda ca_k
+        ora #$c0
+        sta ms_sel
+        lda #<st_matedit
+        ldx #>st_matedit
+        jmp say
+_full:  lda #<st_mfull
+        ldx #>st_mfull
+        jmp say
+st_newmat:      .null "New ?"
+st_mfull:       .null "No room for more materials (16)"
+st_matedit:     .null "Editing the material: select an object to go back"
+
+; Material: Edit - the selected object's material in the properties panel
+cmd_matedit:
+        lda ms_sel
+        cmp #DOC_MAXOBJ
+        bcs _r
+        tax
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_MAT
+        lda (op),y
+        beq _none
+        sec
+        sbc #1
+        ora #$c0
+        sta ms_sel
+        lda #<st_matedit
+        ldx #>st_matedit
+        jmp say
+_none:  lda #<st_nomat
+        ldx #>st_nomat
+        jmp say
+_r:     rts
+st_nomat:       .null "It has no material: Material, Next gives it one"
+
+;=======================================================================================
+; the overlay's variables
+;=======================================================================================
+op              = pb                    ; an object record (base page)
+pv_text:        .fill 20
+pf_n:           .byte 0
+pf_row:         .fill 16
+pf_col:         .fill 16
+pf_kind:        .fill 16
+pf_lbl_lo:      .fill 16
+pf_lbl_hi:      .fill 16
+pf_adr_lo:      .fill 16
+pf_adr_hi:      .fill 16
+dp_i:           .byte 0
+dp_p:           .word 0
+pc_row:         .byte 0
+pc_col:         .byte 0
+pc_f:           .byte 0
+pc_prompt:      .fill 16
+dl_r:           .byte 0
+dl_e:           .byte 0
+dl_y:           .byte 0
+mc_cmd:         .byte 0
+cz_f:           .dword 0
+se_i:           .byte 0
+se_d:           .byte 0
+oo_n:           .byte 0
+oo_i:           .byte 0
+ob_at:          .byte 0
+ca_t:           .byte 0
+ca_s:           .byte 0
+ca_d:           .byte 0
+ca_e:           .byte 0
+ca_n:           .byte 0
+ca_k:           .byte 0
+cd_dir:         .byte 0
+sw_buf:         .fill OBJ_SIZE
+pk_best:        .byte 0
+pk_bd:          .byte 0
+pk_i:           .byte 0
+pk_j:           .byte 0
+pk_w:           .fill 12
+dr_a:           .dword 0
+dr_b:           .dword 0
+tv3m:           .dword 0
+dv_v:           .byte 0
+dv_i:           .byte 0
+wa_i:           .byte 0
+wa_d:           .byte 0
+wa_seld:        .byte 0
+sel_flag:       .fill DOC_MAXOBJ
+lm:             .fill 48
+mm_p:           .fill 48
+mm_c:           .fill 12
+mm_r:           .fill 48
+wcur:           .fill 48
+wstk:           .fill 48 * 10
+wm:             .fill 48 * DOC_MAXOBJ
+lr_ax:          .byte 0
+lr_a:           .byte 0
+lr_b:           .byte 0
+lr_j:           .byte 0
+lr_u:           .byte 0
+lr_v:           .byte 0
+lr_ang:         .dword 0
+lr_c:           .dword 0
+lr_s:           .dword 0
+lr_x:           .dword 0
+lr_y:           .dword 0
+lr_x2:          .dword 0
+lr_y2:          .dword 0
+do_t:           .byte 0
+do_p:           .fill 12
+bx_h:           .fill 12
+bx_l:           .fill 12
+ci_r1:          .dword 0
+ci_r2:          .dword 0
+ci_rr:          .dword 0
+ci_h:           .dword 0
+ci_hh:          .dword 0
+ci_plane:       .byte 0
+ci_k:           .byte 0
+ci_ca:          .dword 0
+ci_sa:          .dword 0
+ci_u:           .dword 0
+ci_v:           .dword 0
+sg_a:           .fill 12
+sg_b:           .fill 12
+sg_wa:          .fill 12
+sg_wb:          .fill 12
+xf_in:          .fill 12
+xf_out:         .fill 12
+pj_v:           .byte 0
+pj_ha:          .byte 0
+pj_va:          .byte 0
+pj_w:           .fill 12
+pj_t:           .dword 0
+pj_c:           .fill 12
+pj_zc:          .dword 0
+pj_zx:          .dword 0
+pj_zy:          .dword 0
+pj_ca:          .dword 0
+pj_cb:          .dword 0
+pj_cx:          .dword 0
+pj_cy:          .dword 0
+pj_fx:          .dword 0
+pj_fy:          .dword 0
+pj_sx:          .word 0
+pj_sy:          .word 0
+cm_f:           .fill 12
+cm_r:           .fill 12
+cm_u:           .fill 12
+cm_k:           .dword 0
+cm_ky:          .dword 0
+cm_half:        .dword 0
+cm_sin:         .dword 0
+cn_a:           .fill 12
+cn_r:           .fill 12
+cn_l:           .dword 0
+ln_x0:          .dword 0
+ln_y0:          .dword 0
+ln_x1:          .dword 0
+ln_y1:          .dword 0
+cl_n:           .byte 0
+cl_c0:          .byte 0
+cl_c1:          .byte 0
+cl_c:           .byte 0
+cl_k:           .byte 0
+cl_x:           .dword 0
+cl_y:           .dword 0
+cl_dx:          .dword 0
+cl_dy:          .dword 0
+cl_e:           .dword 0
+cl_lx:          .dword 0
+cl_rx:          .dword 0
+cl_ty:          .dword 0
+cl_by:          .dword 0

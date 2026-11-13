@@ -159,9 +159,4 @@ bx:             .fill BX_SIZE * MAX_STACK
 ca_fv:          .fill 12
 ca_half:        .dword 0
 ca_sin:         .dword 0
-fs_a:           .dword 0                ; sine
-fs_r:           .dword 0
-fs_s:           .dword 0
-fs_n:           .dword 0
-fs_neg:         .byte 0
 pv_end:

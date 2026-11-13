@@ -13,11 +13,11 @@ Phases
 
 | Phase | What | Status |
 |---|---|---|
-| 1 | Renderer core: the scene read at run time from compiled tables; primitives (sphere, box, cylinder, cone, plane); transforms; booleans; a camera that can turn; coloured lights; a refractive index for each material | in progress |
+| 1 | Renderer core: the scene read at run time from compiled tables; primitives (sphere, box, cylinder, cone, plane); transforms; booleans; a camera that can turn; coloured lights; a refractive index for each material | done |
 | 2 | Scene parser on the MEGA65: the scene language below, read from disk with `kstream` | |
 | 3 | Saving the picture: IFF ILBM | done |
-| 4 | `draw640` (drawing into the 640x200 framebuffer) and the graphical toolkit | |
-| 5 | The modeller | |
+| 4 | `draw640` (drawing into the 640x200 framebuffer) and the graphical toolkit | done |
+| 5 | The modeller | first version |
 | 6 | Animation | |
 
 Each phase is tested the way the tracer is now: a Python model gives the bit-exact expected

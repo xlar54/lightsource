@@ -20,7 +20,48 @@ What works now:
 - **Saving:** `SCENE.IFF`, an IFF ILBM: 8 bitplanes, ByteRun1 compression (about 26 KB for
   the default scene). Its BMHD aspect of 8:15 makes viewers show the true pixel shape.
 
-Still to come: the modeller (`draw640`, the drawing module it needs, is done), and animation.
+- **The modeller,** which is what boot starts. See "The modeller" below.
+
+Still to come: animation.
+
+The modeller
+------------
+
+A 640x200 interface in 256 colours, used with the mouse and keyboard. It starts with
+tinyraytracer's scene as its document.
+
+- **Views:** top, front and side (orthographic) and the camera's (in perspective), all
+  wireframes. The selected object is yellow, and a selected group shows all its parts.
+  Lights are orange crosses; the camera is a green cross with a line to where it looks.
+- **Object list** (top right): objects as an outline (a group's parts are indented under
+  it), then the lights and the camera. Click one to select it.
+- **Properties** (bottom right): position, rotation (degrees), scale and sizes, and the
+  material. Click a number to type a new one (RETURN takes it, ESC leaves it). Click the
+  name to rename the object, or the material to step to the next one.
+- **Mouse in the views:** click near an object's centre, a light or the camera to select it.
+  Drag to move it in that view's plane.
+- **Menus:**
+  - **File:** New, Open, Save, Save as, Export POV, Preview, Render.
+  - **Edit:** Delete, Duplicate, Move up and down, Indent (into the group above),
+    Outdent.
+  - **Add:** the five primitives, a light, and the four booleans. A new boolean takes the
+    selected object into itself.
+  - **Material:** Next, Previous, New (a copy), Edit (the properties panel then shows the
+    material).
+  - **View:** zoom, reset.
+- **Keys:** `+`/`-` zoom, DEL delete, R render, P preview, S save.
+- **Render** writes the document out as scene text, parses it and renders it full screen.
+  Press S on the picture to save it as `NAME.IFF`; any other key or a click goes back.
+- **Preview** is quicker: every 4th pixel of every 2nd line, at most one bounce.
+- **Files:**
+  - Save writes `NAME.MDL`, the document itself.
+  - Export POV writes `NAME.POV`: scene text the renderer, or POV-Ray, can read.
+  - The modeller can't read `.POV` files back; Open reads `.MDL`.
+
+How the scene text is written:
+- Primitives are made at the origin and placed with `scale`, `rotate` and `translate`.
+- Materials become declared textures `M1`, `M2` and so on.
+- A group's material is written on the group, so its parts share it.
 
 Build and run
 -------------
@@ -31,7 +72,8 @@ Build and run
   - every scene in `scenes/`, with `scenes/default.pov` also written as `SCENE.POV`.
 - `run.bat` builds and starts Xemu.
 
-At boot the program renders `SCENE.POV` and saves `SCENE.IFF`. To render another scene, set
+At boot the program starts the modeller. A test build with `-D DBG_BOOTRENDER=1` renders
+`SCENE.POV` instead and saves `SCENE.IFF`. To render another scene that way, set
 `M65SCENE` before building, for example `set M65SCENE=scenes\shapes.pov`.
 
 Build-time test settings go in `M65DEFS`, for example `set M65DEFS=-D DBG_ROWS=8 -D DBG_SAVE=0`:
@@ -41,6 +83,7 @@ Build-time test settings go in `M65DEFS`, for example `set M65DEFS=-D DBG_ROWS=8
 | `DBG_ROWS` | Lines to trace |
 | `DBG_PASS2=0` | Skip the recolouring |
 | `DBG_SAVE=0` | Don't save the picture |
+| `DBG_BOOTRENDER=1` | Render `SCENE.POV` at boot instead of starting the modeller |
 | `DBG_SCENEBIN=1` | Use tables made by `pov.py` instead of parsing |
 | `DBG_LOG=1` | Trace one pixel with a value log |
 | `DBG_GUITEST=1` | Draw the `draw640` test screen |
@@ -52,6 +95,8 @@ The `done` byte reports progress:
 | 1 | Traced |
 | 2 | Recoloured |
 | 3 | Saved |
+| 4 | A picture is on the screen (from the modeller) |
+| 5 | The modeller is up |
 | `$80` | The scene didn't parse; `parse_err` and `parse_line` say why and where |
 | `$81` | A file is missing |
 | `$82` | The picture couldn't be saved |
@@ -81,11 +126,14 @@ attic; `ovl_load` copies one into the window at `$8000-$CFFF` when it's needed.
 
 | Part | Files | What |
 |---|---|---|
-| Resident | `main.asm`, `scene.asm` | Boot, overlay manager, the compiled scene tables. Library: `system`, `dma`, `loader`, `kstream`, `fcm640`, `fixed`, `draw640` |
+| Resident | `main.asm`, `scene.asm` | Boot, overlay manager, the compiled scene tables. Library: `system`, `dma`, `loader`, `kstream`, `fcm640`, `fixed`, `fixtrig`, `draw640`, `keyboard`, `mouse`, `hwsprite` |
 | Overlay 0 | `render.asm`, `trace.asm`, `vars.asm` | Render loop and the tracer: intervals for each primitive, booleans, shading |
 | Overlay 1 | `recolour.asm` | Median-cut palette and Floyd-Steinberg |
 | Overlay 2 | `parse.asm`, `parse2.asm`, `parsev.asm` | The scene language: tokenizer, expressions, objects, transforms, materials, final compile |
 | Overlay 3 | `save.asm` | IFF ILBM files |
+| Overlay 4 | `model.asm`, `model2.asm`, `model3.asm`, `doctiny.asm` | The modeller: views, wireframes, list, properties, commands |
+| Overlay 5 | `writer.asm` | The document as scene text; `.MDL` and `.POV` files |
+| Resident | `gui.asm`, `doc.asm`, `modelst.asm`, `modes.asm` | The toolkit (palette, pointer, events, menus, typing, numbers); the document; the modeller's lasting state; render and file commands |
 
 New library modules:
 

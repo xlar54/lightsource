@@ -20,13 +20,31 @@ Done
 Next
 ----
 
-- [ ] Phase 4, part 2: the toolkit (resident):
-  - GUI palette and mouse pointer (`hwsprite`, `mouse`);
-  - an event loop with a debug event queue for the tests;
-  - menu bar and drop-downs;
-  - line editing at the status line;
-  - number formatting and parsing.
-- [ ] Phase 5: the modeller.
+- [x] Phase 4, part 2: the toolkit (palette, pointer, events with a test queue, menus,
+  typing, numbers).
+- [x] Phase 5: the modeller (see README). Tested in Xemu by injected events:
+  - select (list and views), drag, type values, add objects;
+  - preview; render (the final picture matches the models on every pixel);
+  - save, new, open, export.
+
+Modeller: still to do
+---------------------
+
+- [ ] The mouse on real hardware, and in Xemu by hand (only injected events have been tested).
+- [ ] Dragging an object inside a transformed group moves it in the group's frame, not the
+  view's.
+- [ ] The list shows 11 rows and scrolls only to keep the selection in view: add scrolling by
+  hand.
+- [ ] Undo.
+- [ ] Rotate and scale by dragging (keys or handles).
+- [ ] Editing lights' colours and the background as colours (now three numbers each).
+- [ ] Reading `.POV` files into the modeller.
+- [ ] A material list to pick from (now Next / Previous).
+
+Was in the plan (kept for reference)
+------------------------------------
+
+- [ ] Phase 5 as planned:
   - The document: objects with a depth (an outline tree), materials, lights, camera. Plain
     resident tables, about 3.6 KB.
   - Overlay 4:
