@@ -11,6 +11,7 @@
 ;   overlay 0  render.asm + trace.asm: trace every pixel, 24-bit to attic, a dithered preview
 ;   overlay 1  recolour.asm: a median-cut palette, Floyd-Steinberg into framebuffer 1
 ;   overlay 2  parse.asm: read SCENE.POV and compile it into the tables
+;   overlay 3  save.asm: the picture to disk as SCENE.BMP
 ;
 ; Debug settings (build time: set M65DEFS=-D DBG_ROWS=8 -D DBG_PASS2=0, then build.bat):
 ;   DBG_ROWS      lines to trace (0 = 200)
@@ -18,7 +19,8 @@
 ;   DBG_SCENEBIN  1: the tables come from scene.bin (private/tools/pov.py), no parsing
 ;   DBG_LOG       1: trace pixel (DBG_PX, DBG_PY) only, with trace.asm's #LOG on
 ; Results: ticks_render, ticks_recolour (frames); done = 1 traced, 2 recoloured,
-; $80 the scene didn't parse (parse_err, parse_line), $81 a file is missing.
+; 3 saved, $80 the scene didn't parse (parse_err, parse_line), $81 a file is missing,
+; $82 the picture couldn't be saved (sv_err). dbg_save: 0 don't save, 1 8-bit, 2 24-bit too.
 ;=======================================================================================
         .cpu "45gs02"
 
@@ -31,6 +33,7 @@ DBG_ROWS        = 0
 DBG_PASS2       = 1
 DBG_SCENEBIN    = 0
 DBG_LOG         = 0
+DBG_SAVE        = 1
 DBG_PX          = 0
 DBG_PY          = 0
         .endweak
@@ -48,7 +51,8 @@ OVL_ATTIC       = $8700000              ; overlay n at OVL_ATTIC + n * $10000
 OVL_TRACE       = 0
 OVL_RECOLOUR    = 1
 OVL_PARSE       = 2
-OVL_COUNT       = 3
+OVL_SAVE        = 3
+OVL_COUNT       = 4
 
 ; ---- where everything goes -----------------------------------------------------------
         * = $1fff
@@ -60,6 +64,8 @@ OVL_COUNT       = 3
         .dsection ovl1
         * = $120000
         .dsection ovl2
+        * = $130000
+        .dsection ovl3
 
 ;=======================================================================================
 ; the resident part
@@ -80,6 +86,7 @@ entry:
         ; harness bytes at fixed addresses (also in the .lbl file)
 dbg_rows:       .byte DBG_ROWS          ; 0 = all 200 lines
 dbg_pass2:      .byte DBG_PASS2         ; 0 = stop after tracing
+dbg_save:       .byte DBG_SAVE          ; 0 = don't save, 1 = 8-bit BMP, 2 = 24-bit as well
 done:           .byte 0
 ticks:          .byte 0, 0, 0           ; frames since the start (IRQ)
 ticks_render:   .byte 0, 0, 0
@@ -208,6 +215,32 @@ _ovl:
         bne -
         lda #2
         sta done
+        lda dbg_save                    ; the picture to disk
+        beq idle
+        lda #OVL_SAVE
+        jsr ovl_load
+        lda #0
+        jsr save_bmp
+        bcs _nosave
+        lda dbg_save
+        cmp #2
+        bcc _saved
+        ldx #0                          ; and the 24-bit one: SCENE24.BMP
+-       lda sv_name24,x
+        sta sv_name,x
+        inx
+        cmp #0
+        bne -
+        lda #1
+        jsr save_bmp
+        bcs _nosave
+_saved:
+        lda #3
+        sta done
+        bra idle
+_nosave:
+        lda #$82
+        sta done
 idle:
         jsr wait_frame
         bra idle
@@ -221,6 +254,14 @@ tick:
         inc ticks+2
 +       rts
 
+sv_name24:      .null "SCENE24.BMP"
+
+; ovl_reload: the current overlay again, fresh from attic (after disk calls: the DOS may
+; have used part of the window)
+ovl_reload:
+        lda ovl_cur
+        ldx #$ff
+        stx ovl_cur
 ;---------------------------------------------------------------------------------------
 ; ovl_load: A = overlay: into the window from attic, unless it is there already
 ;---------------------------------------------------------------------------------------
@@ -292,3 +333,11 @@ ovl_name:       .text "OVL0"
         .cerror * > OVL_END, "overlay 2 is too big"
         .endlogical
         .send ovl2
+
+        .section ovl3
+        .word 0
+        .logical OVL_BASE
+        .include "save.asm"
+        .cerror * > OVL_END, "overlay 3 is too big"
+        .endlogical
+        .send ovl3

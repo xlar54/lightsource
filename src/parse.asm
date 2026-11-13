@@ -298,6 +298,7 @@ _end:
         lda #0
         ldz #0
         sta [ptr0],z
+        jsr ovl_reload                  ; (the DOS may have used $C000-$C3FF)
         jmp parse_text
 _bad:
         jsr kst_close
