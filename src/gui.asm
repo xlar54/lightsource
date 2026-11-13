@@ -87,13 +87,12 @@ gui_inited:     .byte 0
 
 ; the pointer where the mouse is (sprites are placed in 320-wide units)
 gui_pointer:
-        lda mouse_x+1
+        lda mouse_x+1                   ; x / 2: all 16 bits (x reaches 639)
         lsr
+        sta hws_x+1
         lda mouse_x
         ror
         sta hws_x
-        lda #0
-        sta hws_x+1
         lda mouse_y
         sta hws_y
         lda #0
