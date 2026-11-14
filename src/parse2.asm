@@ -1306,6 +1306,15 @@ fp_write:
         sta tmp0
 +       lda tmp0
         sta (lp),y
+        jsr fp_ext
+        ldy #P_EXT
+        ldx #0
+-       lda fext,x
+        sta (lp),y
+        iny
+        inx
+        cpx #12
+        bne -
         lda ro_i                        ; the bound: PW_BOUND + 5 i
         jsr pw_bound
         ldy #0
@@ -1317,6 +1326,63 @@ fp_write:
         lda fp_inf
         sta (pa),y
         rts
+; fext: the extent along world axis i, the sum over its own axes j (in that order) of
+; |R[j][i]| * fhl[j]
+fp_ext:
+        ldx #11
+        lda #0
+-       sta fext,x
+        dex
+        bpl -
+        lda #0
+        sta fe_i                        ; i * 4
+_i:
+        lda #0
+        sta fe_j                        ; j * 4
+_j:
+        lda fe_j                        ; tq = |R[j][i]|: fmr + j * 12 + i * 4
+        asl
+        adc fe_j
+        adc fe_i
+        tax
+        ldy #0
+-       lda fmr,x
+        sta tq,y
+        inx
+        iny
+        cpy #4
+        bne -
+        #ABSQ tq, tq
+        ldx fe_j                        ; tv3 = fhl[j]
+        ldy #0
+-       lda fhl,x
+        sta tv3,y
+        inx
+        iny
+        cpy #4
+        bne -
+        #FMUL tq, tv3, tq
+        ldx fe_i                        ; fext[i] += tq
+        clc
+        .for xb = 0, xb < 4, xb += 1
+        lda fext+xb,x
+        adc tq+xb
+        sta fext+xb,x
+        .next
+        lda fe_j
+        clc
+        adc #4
+        sta fe_j
+        cmp #12
+        bne _j
+        lda fe_i
+        clc
+        adc #4
+        sta fe_i
+        cmp #12
+        bne _i
+        rts
+
 ; pa = PW_BOUND + 5 A (A < 64)
 pw_bound:
         sta pa
@@ -1393,6 +1459,9 @@ fp_sphere:
         #MOVQ fp_r, fsh+8
         #MOVQ q_zero, fsh+12
         #MOVQ fp_r, fp_br
+        #MOVQ fp_r, fhl
+        #MOVQ fp_r, fhl+4
+        #MOVQ fp_r, fhl+8
         jmp fp_write
 
 fp_radius_ok:                           ; fp_r > 0
@@ -1426,6 +1495,7 @@ fp_box:
         #DOT fsh, fsh, tq
         jsr fsqrt
         stq fp_br
+        #VMOV fsh, fhl
         jmp fp_write
 
 fp_cyl:                                 ; cylinders and cones
@@ -1509,7 +1579,10 @@ _bad:   #PERR E_CONER
         #MOVQ fp_ra, fp_rm              ; the larger radius
         #BLEQ fp_rb, fp_ra, _br
         #MOVQ fp_rb, fp_rm
-_br:    ; br = sqrt(h^2 + rm^2)
+_br:    ; br = sqrt(h^2 + rm^2); the half sizes (rm, h, rm)
+        #MOVQ fp_rm, fhl
+        #MOVQ fp_h, fhl+4
+        #MOVQ fp_rm, fhl+8
         #FMUL fp_h, fp_h, tq
         #FMUL fp_rm, fp_rm, tv3
         #ADDQ tq, tv3, tq
@@ -1549,6 +1622,7 @@ fp_plane:
 -       sta fsh,x
         dex
         bpl -
+        #VMOV fsh, fhl                  ; (no extent: infinite)
         jmp fp_write
 
 ; a prism: the frame as a box's; the outline scaled (x by the x column's length, z by
@@ -1657,7 +1731,12 @@ _edge:
         bit fz_area+3
         bpl +
         #NEGQ fsh+8, fsh+8
-+       #FMUL fsh, fsh, tq              ; br = sqrt(rm + h^2)
++       ldq fz_rm                       ; the half sizes (sqrt rm, h, sqrt rm)
+        jsr fsqrt
+        stq fhl
+        stq fhl+8
+        #MOVQ fsh, fhl+4
+        #FMUL fsh, fsh, tq              ; br = sqrt(rm + h^2)
         #ADDQ fz_rm, tq, tq
         jsr fsqrt
         stq fp_br
@@ -1772,7 +1851,11 @@ _op:
         jsr bx_push_prim
         bra _op
 _bin:
-        jsr bx_combine
+        cmp #OP_SKIP
+        bne +
+        inc fn_pc                       ; (and its length)
+        bra _op
++       jsr bx_combine
         bra _op
 _end:
         ; a single sphere needs no bound
@@ -1827,7 +1910,7 @@ _flags:
         jmp _root
 q_margin:       .dint BOUND_MARGIN
 
-; push primitive A's box: c +- br, or infinite
+; push primitive A's box: c +- its extents (P_EXT), or infinite
 bx_push_prim:
         tax
         lda bx_sp
@@ -1859,9 +1942,17 @@ bx_push_prim:
         inx
         cpx #12
         bne -
+        ldy #P_EXT
+        ldx #0
+-       lda (lp),y
+        sta fext,x
+        iny
+        inx
+        cpx #12
+        bne -
         .for xi = 0, xi < 3, xi += 1
-        #SUBQ fc+xi*4, fp_br, ba+xi*4
-        #ADDQ fc+xi*4, fp_br, ba+12+xi*4
+        #SUBQ fc+xi*4, fext+xi*4, ba+xi*4
+        #ADDQ fc+xi*4, fext+xi*4, ba+12+xi*4
         .next
         lda bx_sp
         inc bx_sp

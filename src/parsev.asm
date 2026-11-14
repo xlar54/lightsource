@@ -72,6 +72,7 @@ ob_kw:          .fill MAX_DEPTH
 ob_p0:          .fill MAX_DEPTH         ; its first primitive
 ob_r0:          .fill MAX_DEPTH         ; where its program starts
 ob_cnt:         .fill MAX_DEPTH
+ob_sk:          .fill MAX_DEPTH         ; where its part's OP_SKIP length goes
 ; transforms
 xw:             .fill 48
 xv:             .fill 12
@@ -122,6 +123,10 @@ fls:            .fill 12                ; their lengths
 fc:             .fill 12                ; the record's c, R, shape
 fmr:            .fill 36
 fsh:            .fill 16
+fhl:            .fill 12                ; the half sizes along its own axes
+fext:           .fill 12                ; and along the world's (the record's P_EXT)
+fe_i:           .byte 0
+fe_j:           .byte 0
 fp_type:        .byte 0
 fp_inf:         .byte 0
 fp_br:          .dword 0

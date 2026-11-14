@@ -119,8 +119,10 @@ The parser turns the text into tables in bank 0, which the tracer reads directly
 Python model builds the same tables bit for bit.
 
 **Primitive record** (128 bytes each, up to 64, in attic at `$8302000`, 160 bytes apart: the
-last 32 of each hold the parser's copy of the definition. The tracer copies a record by DMA
-when it tests the primitive, and each one's type is also in bank 0, `sc_ptype`):
+last 32 of each hold the parser's copy of the definition. Each one's type is also in bank 0,
+`sc_ptype`. Before tracing, the first 68 bytes of each go to chip RAM (`HOT_BUF`, the top of
+the scene text's buffer), with the shape before R; the tracer copies one into `cp` by DMA
+when it tests the primitive: 68 bytes, or 32 when it isn't rotated):
 
 | Offset | Size | What |
 |---|---|---|
@@ -132,7 +134,7 @@ when it tests the primitive, and each one's type is also in bank 0, `sc_ptype`):
 | 52 | 16 | shape: sphere r², 1/r, r; box half sizes; cylinder r², h, 1/r; cone a, b, h, 1/sqrt(1+b²); prism h, (first point, corners), orientation (±1) |
 | 68 | 36 | texture matrix: the inverse of the object's transform, with the pigment's own transform |
 | 104 | 12 | texture offset |
-| 116 | 12 | bounding sphere: centre (radius² in the root table) |
+| 116 | 12 | half its extent along world x, y, z (`sum over j of abs(R[j][i]) * half size j`): the parser's bounds |
 
 In local coordinates: the sphere is centred on the origin; the box is `|x| <= hx`, `|y| <= hy`,
 `|z| <= hz`; the cylinder is `x² + z² <= r²`, `|y| <= h`; the cone is
@@ -149,8 +151,12 @@ second colour (checker); ambient (already multiplied by `ambient_light`); phong_
 (bit 0 checker); 1/ior, 1/ior², ior, ior².
 
 **Objects:** a list of roots. A root is a primitive, or a boolean tree written as a postfix
-program: `PRIM n`, `UNION`, `INTER`, `DIFF`, `END`. Unions at the top level are flattened
-into separate roots, because they keep their inner surfaces.
+program: `PRIM n`, `UNION`, `INTER`, `DIFF`, `END`. Each part of an intersection or a
+difference after the first is preceded by `SKIP length`: when the list so far is empty,
+the tracer skips the part and its operation, since the result is empty whatever the part
+is. Unions at the top level are flattened into separate roots, because they keep their
+inner surfaces. A root's bounding sphere surrounds the box made from its primitives'
+extents (intersections narrow it, a difference keeps the first part's).
 
 **Lights** (up to 16): position, colour, flags (shadowless). **Global:** background,
 camera (position, right, up and forward vectors already scaled for the field of view),
@@ -178,8 +184,12 @@ The tracer
   nearest zero is set to exactly zero, so it can't be hit again through rounding. This is
   the same idea as the current `2 tca`, made general.
 - **Shadows:** any surface between EPS and the light's distance. `no_shadow` objects are
-  skipped.
+  skipped. The root that last blocked each light is tried first.
 - **Bounding spheres** for every root reject rays cheaply before the real tests.
+- **Kept per origin:** a sphere's (and a bounding sphere's) `L = c - o` and `L.L` depend
+  only on the ray's origin, so they are kept with the origin's number: the camera's
+  (number 0) serves every primary ray, and a hit point's serves its shadow rays and the
+  rays it sends on.
 
 Programs and memory
 -------------------
@@ -194,7 +204,7 @@ program renders `SCENE.POV` from the disk at boot and saves `SCENE.IFF`.
 | `$2001`-`$BFFF` | Program, variables and the compiled scene tables |
 | `$0800`, `$C000` | The two 4000-byte screen RAMs (`fcm640`) |
 | `$12000`-`$13F3F` | The modeller's screen RAMs (`fcm640`) |
-| `$14000`-`$1EFFF` | The scene file's text while it is parsed (44 KB), and `.MDL` files while they load |
+| `$14000`-`$1EFFF` | The scene file's text while it is parsed (44 KB), and `.MDL` files while they load. While tracing, its top 4,352 bytes hold the primitives' records (`HOT_BUF`) |
 | `$20000`-`$3F3FF` | Framebuffer 1: the final picture |
 | `$40000`-`$5F3FF` | Framebuffer 0: the preview while rendering; the modeller's screen |
 | `$8000000` | The 24-bit picture (384,000 bytes) |

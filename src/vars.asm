@@ -20,10 +20,12 @@ cp_flags:       .byte 0
 cp_mat:         .byte 0
                 .byte 0
 cp_c:           .fill 12
-cp_r:           .fill 36
-cp_s:           .fill 16
+cp_s:           .fill 16                ; (the shape before R: an unrotated primitive needs
+cp_r:           .fill 36                ; only the first 32 bytes; trace.asm hot_fill)
         .cerror * - cp != P_HOT, "cp layout"
+        .cerror cp_s - cp != 16 || cp_r - cp != 32, "hot_fill's layout"
 cpi:            .byte 0
+hot_n:          .fill MAX_PRIM          ; the bytes of each one prim_load copies (hot_fill)
 cp_own:         .byte 0                 ; 1: the ray starts on this primitive
 ol:             .fill 12                ; the ray in its local frame
 dl:             .fill 12
@@ -36,6 +38,18 @@ pv_s1:          .byte 0
 ; tests
 sL:             .fill 12
 sLL:            .dword 0
+        .cerror sLL != sL + 12, "iv_sphere copies sL and sLL together"
+sl_have:        .byte 0
+; a sphere's L = c - o and L.L, kept for the origin they were worked out for: the camera's
+; (number 0) for every primary ray, a hit point's for its shadow rays and the rays it sends
+og_cur:         .word 0                 ; the ray origin's number
+og_next:        .word 0
+pc_og_lo:       .fill MAX_PRIM          ; each primitive's: the origin ($ffff: none)
+pc_og_hi:       .fill MAX_PRIM
+pc_l:           .fill 16 * MAX_PRIM     ; and sL, sLL (byte k of primitive i at k * MAX_PRIM + i)
+rc_og_lo:       .fill MAX_ROOT          ; the same for each root's bounding sphere
+rc_og_hi:       .fill MAX_ROOT
+rc_l:           .fill 16 * MAX_ROOT
 tca:            .dword 0
 tt:             .dword 0
 d2:             .dword 0
@@ -144,6 +158,7 @@ li_sp:          .fill 12
 li_dt:          .dword 0
 li_st:          .dword 0
 sh_dist:        .dword 0
+sh_last:        .fill MAX_LIGHT         ; the root that last blocked each light ($ff: none)
 ; current material (a copy of a material record)
 cur_mat:
 cm_al:          .fill 16
@@ -186,6 +201,7 @@ fr_al2:         .dword 0
 fr_al3:         .dword 0
 fr_hid:         .byte 0
 fr_depth:       .byte 0
+fr_og:          .word 0                 ; fr_p's origin number
 FRAME_SIZE      = * - frame
 fr_sp:          .byte 0
 fr_stack:       .fill FRAME_SIZE * 5

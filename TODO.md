@@ -96,13 +96,25 @@ Was in the plan (kept for reference)
 Speed
 -----
 
-- [ ] The default scene takes 163 s, against 83 s for the old tracer that had the scene built
-  in. Ideas:
-  - cache each primitive's local ray origin for all the shadow rays from one point;
-  - skip roots whose bound is beyond the light;
-  - avoid the DMA copy of the primitive record for spheres;
-  - turn macros into subroutines where the code is hot but called rarely.
-- [ ] Profile on hardware.
+- [x] Faster tracing, every picture unchanged (bit-exact against the models). In Xemu the
+  default scene went from 164 s to 133 s (-19%), shapes.pov -9% or more, prism.pov -11%,
+  parse1.pov -17%:
+  - the records copied to chip RAM once per render, the shape before R, so an unrotated
+    primitive copies 32 bytes instead of 68;
+  - tight bounds: each primitive's extent along x, y and z, not a sphere's (the
+    checkerboard's bound went from radius 24.6 to 14.2);
+  - `SKIP`: an intersection or difference skips its next part when the list so far is
+    empty (the checkerboard's box for every ray going up);
+  - each light tries the root that last blocked it first;
+  - a sphere's and a bounding sphere's `c - o` and `L.L` kept per ray origin;
+  - `fmul` returns the product directly when both are positive.
+- [ ] More speed. Measured costs (default scene): `fmul` about 20% (16 million calls), the
+  checkerboard's box (6 divisions a test) and its boolean about 15%, the record DMA 5%. Ideas:
+  - a box test with one division per axis (changes the rounding: the model too);
+  - a box-shaped bound for flat roots (a sphere round a 20 x 1 x 20 slab covers the screen);
+  - fewer Newton steps in `fsqrt` (a better first guess gives the same result);
+  - DMA for the frame push / pop and the light record copy.
+- [ ] Profile on hardware (attic DMA is slower there than in Xemu).
 
 Real hardware
 -------------

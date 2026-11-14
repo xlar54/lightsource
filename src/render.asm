@@ -35,6 +35,7 @@ render_pixel:
         sta px_x+1
         lda #DBG_PY
         sta px_y
+        jsr hot_fill
         jmp trace_pixel
         .endif
 
@@ -43,6 +44,7 @@ render_pixel:
 ; work), dithered to the cube; nothing kept in attic
 ;---------------------------------------------------------------------------------------
 render_preview:
+        jsr hot_fill
         lda #0
         sta fr_sp
         sta px_y
@@ -105,6 +107,7 @@ pr_x:           .word 0
 ; render: trace every pixel, top to bottom
 ;---------------------------------------------------------------------------------------
 render:
+        jsr hot_fill
         lda #0
         sta fr_sp
         lda #<RGB_IMAGE

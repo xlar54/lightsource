@@ -108,19 +108,151 @@ TDIV .macro num, den, dst
 .endmacro
 
 ;---------------------------------------------------------------------------------------
-; prim_load: A = primitive -> cp (its first P_HOT bytes, by DMA), cpi, cp_own
+; hot_fill: each primitive's first P_HOT bytes from attic to HOT_BUF (chip RAM), where
+; prim_load copies them from, in cp's order: the header and c, the shape, then R. An
+; unrotated primitive needs only the first 32 (hot_n). Every entry point that traces calls
+; it first (the parser has just written the records).
+;---------------------------------------------------------------------------------------
+hot_fill:
+        lda #$ff                        ; nothing in cp, no light blocked yet
+        sta cpi
+        ldx #MAX_LIGHT - 1
+-       sta sh_last,x
+        dex
+        bpl -
+        jsr og_clear                    ; no origins seen
+        lda #0
+        sta og_next
+        sta og_next+1
+        ldx #0
+_next:
+        cpx sc_nprim
+        bne +
+        rts
++       ldy #0                          ; its three parts
+_part:
+        clc
+        lda prim_lo,x
+        adc hf_from,y
+        sta hf_job_src
+        lda prim_hi,x
+        adc #0
+        sta hf_job_src+1
+        clc
+        lda hot_lo,x
+        adc hf_to,y
+        sta hf_job_dst
+        lda hot_hi,x
+        adc #0
+        sta hf_job_dst+1
+        lda hf_len,y
+        sta hf_job_n
+        lda #>hf_job
+        sta DMA_ADDRMSB
+        lda #<hf_job
+        sta DMA_ADDRLSB_ETRIG
+        iny
+        cpy #3
+        bne _part
+        lda #<cp                        ; and its header into cp, for the flags
+        sta hf_job_dst
+        lda #>cp
+        sta hf_job_dst+1
+        lda #0
+        sta hf_job_dbank
+        lda prim_lo,x
+        sta hf_job_src
+        lda prim_hi,x
+        sta hf_job_src+1
+        lda #4
+        sta hf_job_n
+        lda #>hf_job
+        sta DMA_ADDRMSB
+        lda #<hf_job
+        sta DMA_ADDRLSB_ETRIG
+        lda #`HOT_BUF
+        sta hf_job_dbank
+        lda cp_flags
+        and #F_ROT
+        beq +
+        lda #P_HOT
+        bra ++
++       lda #32
++       sta hot_n,x
+        inx
+        jmp _next
+hf_from:        .byte 0, P_S, P_R       ; the record's parts
+hf_to:          .byte 0, 16, 32         ; where they go
+hf_len:         .byte 16, 16, 36
+hf_job:
+        .byte DMAOPT_F018B, DMAOPT_SRC_MB, FAR_MB, DMAOPT_DST_MB, 0, DMAOPT_END
+        .byte DMACMD_COPY
+hf_job_n:
+        .word P_HOT
+hf_job_src:
+        .word 0
+        .byte FAR_BANK
+hf_job_dst:
+        .word 0
+hf_job_dbank:
+        .byte `HOT_BUF
+        .byte 0
+        .word 0
+
+; og_new: ray_o is a new origin: og_cur = the next number (1..$fffe; after that every
+; primitive's kept origin is forgotten and they start again)
+og_new:
+        inc og_next
+        bne +
+        inc og_next+1
++       lda og_next
+        and og_next+1
+        cmp #$ff
+        bne +
+        jsr og_clear
+        lda #1
+        sta og_next
+        lda #0
+        sta og_next+1
++       lda og_next
+        sta og_cur
+        lda og_next+1
+        sta og_cur+1
+        rts
+og_clear:
+        lda #$ff
+        ldx #MAX_PRIM - 1
+-       sta pc_og_lo,x
+        sta pc_og_hi,x
+        dex
+        bpl -
+        ldx #MAX_ROOT - 1
+-       sta rc_og_lo,x
+        sta rc_og_hi,x
+        dex
+        bpl -
+        rts
+
+;---------------------------------------------------------------------------------------
+; prim_load: A = primitive -> cp (its first P_HOT bytes, by DMA from HOT_BUF; nothing to
+; copy when it is already there), cpi, cp_own
 ;---------------------------------------------------------------------------------------
 prim_load:
+        cmp cpi
+        beq _own
         sta cpi
         tax
-        lda prim_lo,x
+        lda hot_lo,x
         sta cp_job_src
-        lda prim_hi,x
+        lda hot_hi,x
         sta cp_job_src+1
+        lda hot_n,x
+        sta cp_job_n
         lda #>cp_job
         sta DMA_ADDRMSB
         lda #<cp_job
         sta DMA_ADDRLSB_ETRIG
+_own:
         lda #0
         ldx cpi
         cpx ray_from
@@ -128,13 +260,14 @@ prim_load:
         lda #1
 +       sta cp_own
         rts
-cp_job:                                 ; (from the record in attic)
-        .byte DMAOPT_F018B, DMAOPT_SRC_MB, FAR_MB, DMAOPT_DST_MB, 0, DMAOPT_END
+cp_job:
+        .byte DMAOPT_F018B, DMAOPT_SRC_MB, 0, DMAOPT_DST_MB, 0, DMAOPT_END
         .byte DMACMD_COPY
+cp_job_n:
         .word P_HOT
 cp_job_src:
         .word 0
-        .byte FAR_BANK
+        .byte `HOT_BUF
         .word cp
         .byte 0
         .byte 0
@@ -249,7 +382,24 @@ prim_iv:
 piv_tab:        .word iv_sphere, iv_box, iv_cyl, iv_cone, iv_plane, iv_prism
 
 iv_sphere:
-        #VSUB cp_c, ray_o, sL           ; L = c - o
+        ldx cpi                         ; L = c - o, and L.L: kept for each origin
+        lda pc_og_lo,x
+        cmp og_cur
+        bne _new
+        lda pc_og_hi,x
+        cmp og_cur+1
+        bne _new
+        .for si = 0, si < 16, si += 1
+        lda pc_l+si*MAX_PRIM,x          ; (sL then sLL)
+        sta sL+si
+        .next
+        lda #1
+        bra _have
+_new:
+        #VSUB cp_c, ray_o, sL
+        lda #0
+_have:
+        sta sl_have
         #DOT sL, ray_d, tca
         lda #0
         sta pv_s0
@@ -268,8 +418,19 @@ _behind:
         #MOVQ q_zero, pv_t1
         bra _one
 _other:
+        lda sl_have
+        bne +
         #DOT sL, sL, sLL
-        bit tca+3                       ; tca < 0 and LL > r2: behind, outside
+        ldx cpi                         ; keep them for this origin
+        lda og_cur
+        sta pc_og_lo,x
+        lda og_cur+1
+        sta pc_og_hi,x
+        .for si = 0, si < 16, si += 1
+        lda sL+si
+        sta pc_l+si*MAX_PRIM,x
+        .next
++       bit tca+3                       ; tca < 0 and LL > r2: behind, outside
         bpl _front
         #BGTQ sLL, cp_s, _none
 _front:
@@ -1144,24 +1305,73 @@ _op:
         jsr pv_push
         bra _op
 _bin:
+        cmp #OP_SKIP
+        beq _skip
         sta cb_op
         jsr combine
+        bra _op
+_skip:                                  ; the list on top empty: skip the part (and its
+        ldx rpc                         ; operation), the result is empty anyway
+        inc rpc
+        ldy lsp
+        lda ivl_lo-1,y
+        sta pa
+        lda ivl_hi-1,y
+        sta pa+1
+        ldy #0
+        lda (pa),y
+        bne _op
+        clc
+        lda sc_prog,x
+        adc rpc
+        sta rpc
         bra _op
 _done:
         rts
 
 ; bound_test: the root at rp has a bounding sphere: carry set if the ray may hit it
 bound_test:
+        ldy #R_BR2                      ; r^2
+        ldx #0
+-       lda (rp),y
+        sta rb_r2,x
+        iny
+        inx
+        cpx #4
+        bne -
+        ldx rk                          ; L = c - o and L.L: kept for each origin
+        lda rc_og_lo,x
+        cmp og_cur
+        bne _new
+        lda rc_og_hi,x
+        cmp og_cur+1
+        bne _new
+        .for si = 0, si < 16, si += 1
+        lda rc_l+si*MAX_ROOT,x
+        sta sL+si
+        .next
+        bra _have
+_new:
         ldy #R_BC
         ldx #0
 -       lda (rp),y
         sta rb_c,x
         iny
         inx
-        cpx #16
+        cpx #12
         bne -
         #VSUB rb_c, ray_o, sL
         #DOT sL, sL, sLL
+        ldx rk
+        lda og_cur
+        sta rc_og_lo,x
+        lda og_cur+1
+        sta rc_og_hi,x
+        .for si = 0, si < 16, si += 1
+        lda sL+si
+        sta rc_l+si*MAX_ROOT,x
+        .next
+_have:
         #BLEQ sLL, rb_r2, _yes          ; the origin is inside
         #DOT sL, ray_d, tca
         bit tca+3
@@ -1177,6 +1387,7 @@ _yes:
         rts
 
 ; rp = root X
+
 root_ptr:
         lda root_lo,x
         sta rp
@@ -1298,9 +1509,18 @@ _next:
         jmp _root
 
 ;---------------------------------------------------------------------------------------
-; occluded: carry set if anything is hit between EPS and sh_dist
+; occluded: carry set if anything is hit between EPS and sh_dist. The root that last
+; blocked this light (sh_last) is tried first: the next point is often in the same shadow.
 ;---------------------------------------------------------------------------------------
 occluded:
+        ldx li_n
+        lda sh_last,x
+        bmi _scan                       ; (none)
+        sta rk
+        tax
+        jsr oc_root
+        bcs _yes
+_scan:
         lda #0
         sta rk
 _root:
@@ -1309,7 +1529,25 @@ _root:
         bne +
         clc
         rts
-+       jsr root_ptr
++       ldy li_n                        ; (that one again: no)
+        txa
+        cmp sh_last,y
+        beq _next
+        jsr oc_root
+        bcc _next
+        lda rk                          ; it blocks this light: try it first next time
+        ldx li_n
+        sta sh_last,x
+_yes:
+        sec
+        rts
+_next:
+        inc rk
+        bra _root
+
+; oc_root: carry set if root X (= rk) has a surface between EPS and sh_dist
+oc_root:
+        jsr root_ptr
         ldy #R_FLAGS
         lda (rp),y
         and #RF_NOSHADOW
@@ -1352,8 +1590,8 @@ _ev:
         inc cb_ia
         bra _ev
 _next:
-        inc rk
-        jmp _root
+        clc
+        rts
 _yes:
         sec
         rts
@@ -1616,6 +1854,11 @@ _hit:
         jsr surface
         ; ---- lights: shadow rays from the hit point ----
         #VMOV fr_p, ray_o
+        jsr og_new                      ; (a new origin: the rays from here share it)
+        lda og_cur
+        sta fr_og
+        lda og_cur+1
+        sta fr_og+1
         lda fr_hid
         sta ray_from
         #VMOV q_zero3, li_di
@@ -1716,6 +1959,10 @@ _local:
 +       #REFLECT cur_d, hit_n, ray_d
         jsr push_frame
         #VMOV fr_p, ray_o
+        lda fr_og                       ; (its number, from the frame)
+        sta og_cur
+        lda fr_og+1
+        sta og_cur+1
         lda fr_hid
         sta ray_from
         ldx fr_depth
@@ -1739,6 +1986,10 @@ _norefl:
 +       #VMOV fr_tdir, ray_d
         jsr push_frame
         #VMOV fr_p, ray_o
+        lda fr_og                       ; (its number, from the frame)
+        sta og_cur
+        lda fr_og+1
+        sta og_cur+1
         lda fr_hid
         sta ray_from
         ldx fr_depth
@@ -1854,6 +2105,9 @@ trace_pixel:
         #FDIV pd3+4, tv, ray_d+4
         #FDIV pd3+8, tv, ray_d+8
         #VMOV sc_cam_o, ray_o
+        lda #0                          ; (the camera: origin 0)
+        sta og_cur
+        sta og_cur+1
         lda #NO_ID
         sta ray_from
         lda #0

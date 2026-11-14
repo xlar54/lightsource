@@ -1969,6 +1969,7 @@ _new:
 _part:
         jsr is_object_kw
         bne _parts_done
+        jsr sk_open
         ldx ob_d
         lda ob_kw-1,x
         cmp #KW_UNION
@@ -1993,6 +1994,7 @@ _part:
         tay
         lda csg_ops,y
         jsr emit
+        jsr sk_close
         bra _part
 _parts_done:
         ldx ob_d
@@ -2030,6 +2032,40 @@ _out:
         dec ob_d
         rts
 csg_ops:        .byte OP_UNION, OP_UNION, OP_INTER, OP_DIFF
+
+; before a part of an intersection or difference, other than the first: OP_SKIP and a
+; length, filled in by sk_close once the part and its operation are emitted
+sk_open:
+        ldx ob_d
+        lda ob_cnt-1,x
+        beq sk_none
+        lda ob_kw-1,x
+        sec
+        sbc #KW_UNION
+        cmp #2
+        bcc sk_none
+        lda #OP_SKIP
+        jsr emit
+        ldx ob_d
+        lda prog_len
+        sta ob_sk-1,x
+        lda #0
+        jmp emit
+sk_none:
+        rts
+sk_close:
+        ldx ob_d
+        lda ob_kw-1,x
+        sec
+        sbc #KW_UNION
+        cmp #2
+        bcc sk_none
+        ldy ob_sk-1,x                   ; length = the bytes after it
+        clc
+        lda prog_len
+        sbc ob_sk-1,x
+        sta sc_prog,y
+        rts
 
 ; rp = root X (bank 0)
 root_ptr_x:

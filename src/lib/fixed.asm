@@ -189,13 +189,20 @@ DOT .macro a, b, dst                    ; dst = a . b  (x, y, z products summed 
 
 ;---------------------------------------------------------------------------------------
 ; fmul: Q = fm_a * Q (signed 16.16). The multiplier is unsigned: the signed product's
-; bits 32..47 lose b (if a < 0) and a (if b < 0).
+; bits 32..47 lose b (if a < 0) and a (if b < 0). Both positive: the product as it comes.
 ;---------------------------------------------------------------------------------------
 fmul:
         stq fm_b
         stq MULTINB
         ldq fm_a
         stq MULTINA
+        cpz #$80                        ; (Z = a's top byte)
+        bcs _signed
+        bit fm_b+3
+        bmi _signed
+        ldq MULTOUT+2
+        rts
+_signed:
         ldq MULTOUT+2
         stq fm_r
         bit fm_a+3

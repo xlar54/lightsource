@@ -41,6 +41,10 @@ RF_NOSHADOW     = 2
 OP_UNION        = $80                   ; boolean program
 OP_INTER        = $81
 OP_DIFF         = $82
+OP_SKIP         = $83                   ; then a length: if the list on top is empty, skip
+                                        ; that many bytes (the next part of an intersection
+                                        ; or difference and its operation: the result is
+                                        ; empty whatever the part is)
 OP_END          = $ff
 NO_ID           = $ff
 
@@ -85,6 +89,7 @@ P_S             = 52                    ; shape: 4 dwords
 P_HOT           = 68                    ; the bytes the intersection tests use
 P_TEXA          = 68
 P_TEXT          = 104
+P_EXT           = 116                   ; half its extent along x, y, z (the parser's bounds)
 
 ; the tables in bank 0; the primitive records are in attic (prim_lo / prim_hi: offsets in
 ; the FAR bank), with each one's type here too (sc_ptype) for the tracer's quick checks
@@ -130,3 +135,11 @@ light_lo:       .byte <(sc_lights + range(MAX_LIGHT) * LIGHT_SIZE)
 light_hi:       .byte >(sc_lights + range(MAX_LIGHT) * LIGHT_SIZE)
 prim_lo:        .byte <(PRIM_ATTIC + range(MAX_PRIM) * PRIM_STRIDE)   ; (attic offsets)
 prim_hi:        .byte >(PRIM_ATTIC + range(MAX_PRIM) * PRIM_STRIDE)
+
+; while tracing, a copy of each record's first P_HOT bytes in chip RAM (trace.asm hot_fill):
+; the top of the scene text's buffer, which isn't needed once the scene is parsed. (Below
+; $1F000: the C65 DOS writes the date at $1F6C4.)
+HOT_BUF         = $1f000 - MAX_PRIM * P_HOT
+        .cerror HOT_BUF < TEXT_BUF || (HOT_BUF >> 16) != ((HOT_BUF + MAX_PRIM * P_HOT - 1) >> 16), "HOT_BUF"
+hot_lo:         .byte <(HOT_BUF + range(MAX_PRIM) * P_HOT)
+hot_hi:         .byte >(HOT_BUF + range(MAX_PRIM) * P_HOT)
