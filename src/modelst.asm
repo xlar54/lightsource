@@ -8,6 +8,9 @@ ms_view:        .fill 3 * 12            ; ortho views: zoom, centre across, cent
 ms_lscroll:     .byte 0                 ; the list's first row
 ms_maxview:     .byte $ff               ; the view made large, or $ff: all four
 ms_drag:        .byte $ff               ; the view being dragged in
+ms_dpt:         .byte 0                 ; 1: dragging a prism's corner, not the object
+ms_pt:          .byte 0                 ; the prism corner picked (valid while ms_ptobj
+ms_ptobj:       .byte $ff               ;  is the selection)
 ms_dview:       .byte 0
 ms_dx:          .word 0
 ms_dy:          .byte 0

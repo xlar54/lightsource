@@ -32,7 +32,10 @@ primitive:
         sec
         sbc #KW_SPHERE
         sta pr_type
-        jsr vector                      ; every primitive starts with a vector
+        cmp #T_PRISM
+        bne +
+        jmp _prism
++       jsr vector                      ; the others all start with a vector
         ldy #0
         jsr par_put12
         #EXPECT ','
@@ -73,6 +76,106 @@ _cone:
         jsr number
         ldy #28
         jsr par_put4
+        jmp _done
+_prism:
+        ; prism { [linear_sweep] [linear_spline] h1, h2, n, <x, z> ... }: h1 @0, h2 @4,
+        ; the first point @8, corners @9. The points go into SC_PTS (bank 1; a last one
+        ; that repeats the first is dropped), with a slot after them for closing the
+        ; outline (fp_prism)
+        lda #KW_LINSWEEP
+        jsr accept_kw
+        lda #KW_LINSPLINE
+        jsr accept_kw
+        jsr number
+        ldy #0
+        jsr par_put4
+        #EXPECT ','
+        jsr number
+        ldy #4
+        jsr par_put4
+        #EXPECT ','
+        jsr number
+        lda v_c+3                       ; n: the integer part, 0 to 255
+        ora v_c+1                       ; (only whole numbers make sense; the fraction
+        bne _pbad                       ;  is dropped, as pov.py's >> 16)
+        lda v_c+2
+        sta pr_n
+        ldy #8
+        lda sc_npts
+        sta (pa),y
+_pt:
+        lda pr_n
+        beq _pts
+        dec pr_n
+        #EXPECT ','
+        jsr expr
+        lda v_n
+        bne +
+        #PERR E_VECPARTS
++       lda sc_npts
+        cmp #MAX_PTS
+        bcc +
+        #PERR E_PTS
++       lda #<v_c                       ; x, then the second part (z)
+        sta px_b0
+        lda #>v_c
+        sta px_b0+1
+        jsr pts_base
+        lda sc_npts
+        ldx #1
+        jsr px_put
+        inc sc_npts
+        bra _pt
+_pts:
+        ldy #8                          ; (expressions leave pa alone)
+        sec
+        lda sc_npts
+        sbc (pa),y
+        sta pr_n                        ; points read
+        cmp #2
+        bcc _pcount
+        jsr pts_base                    ; the last one repeats the first: dropped
+        lda #<fz_a
+        sta px_b0
+        lda #>fz_a
+        sta px_b0+1
+        ldy #8
+        lda (pa),y
+        ldx #1
+        jsr px_get                      ; fz_a = the first
+        lda #<(fz_a + 8)
+        sta px_b0
+        lda #>(fz_a + 8)
+        sta px_b0+1
+        lda sc_npts
+        sec
+        sbc #1
+        ldx #1
+        jsr px_get                      ; fz_a + 8 = the last
+        ldy #7
+-       lda fz_a,y
+        cmp fz_a+8,y
+        bne _pcount
+        dey
+        bpl -
+        dec sc_npts
+        dec pr_n
+_pcount:
+        lda pr_n
+        cmp #3
+        bcc _pbad
+        cmp #MAX_PRISM_PTS + 1
+        bcs _pbad
+        ldy #9
+        sta (pa),y
+        lda sc_npts                     ; the closing slot
+        cmp #MAX_PTS
+        bcc +
+        #PERR E_PTS
++       inc sc_npts
+        bra _done
+_pbad:
+        #PERR E_PRISMPTS
 _done:
         #ISKW KW_OPEN
         bne +
@@ -1121,7 +1224,7 @@ fin_prim:
         asl
         tax
         jmp (_t,x)
-_t:     .word fp_sphere, fp_box, fp_cyl, fp_cyl, fp_plane
+_t:     .word fp_sphere, fp_box, fp_cyl, fp_cyl, fp_plane, fp_prism
 
 ; write c, R, shape and flags, and the bounding radius
 fp_write:
@@ -1395,6 +1498,141 @@ fp_plane:
         dex
         bpl -
         jmp fp_write
+
+; a prism: the frame as a box's; the outline scaled (x by the x column's length, z by
+; z's), closed by a copy of its first point; the orientation from its signed area
+fp_prism:
+        jsr check_orth
+        #MOVQ q_zero, fv_in             ; c = M (0, (h1 + h2) >> 1, 0)
+        #MOVQ q_zero, fv_in+8
+        #ADDQ fp_par, fp_par+4, tq
+        #ASRQ_Q
+        stq fv_in+4
+        jsr apply_point
+        #VMOV fv_out, fc
+        #SUBQ fp_par+4, fp_par, tq      ; h = (|h2 - h1| >> 1) * ly
+        #ABSQ tq, tq
+        ldq tq
+        #LSRQ_Q
+        stq tq
+        #FMUL tq, fls+4, fsh
+        bit fsh+3
+        bmi _noh
+        #BNEZ fsh, +
+_noh:   #PERR E_PRISMH
++       .for xj = 0, xj < 3, xj += 1
+        .for xi = 0, xi < 3, xi += 1
+        #FDIV fcol+xj*12+xi*4, fls+xj*4, fmr+xj*12+xi*4
+        .next
+        .next
+        jsr pts_base                    ; its corners into pt_buf
+        lda #<pt_buf
+        sta px_b0
+        lda #>pt_buf
+        sta px_b0+1
+        lda fp_par+8
+        ldx fp_par+9
+        jsr px_get
+        lda #0                          ; scaled
+        sta fz_i
+_scale:
+        lda fz_i
+        jsr fz_get
+        #FMUL fz_a, fls, fz_a
+        #FMUL fz_a+4, fls+8, fz_a+4
+        lda fz_i
+        asl
+        asl
+        asl
+        tax
+        ldy #0
+-       lda fz_a,y
+        sta pt_buf,x
+        inx
+        iny
+        cpy #8
+        bne -
+        inc fz_i
+        lda fz_i
+        cmp fp_par+9
+        bne _scale
+        asl                             ; the closing point: the first again
+        asl
+        asl
+        tax
+        ldy #0
+-       lda pt_buf,y
+        sta pt_buf,x
+        inx
+        iny
+        cpy #8
+        bne -
+        lda fp_par+8                    ; back, closed
+        ldx fp_par+9
+        inx
+        jsr px_put
+        #MOVQ q_zero, fz_area           ; area and the largest x^2 + z^2
+        #MOVQ q_zero, fz_rm
+        lda #0
+        sta fz_i
+_edge:
+        lda fz_i
+        jsr fz_get
+        #FMUL fz_a, fz_a+12, tq         ; area += ax bz - az bx
+        #ADDQ fz_area, tq, fz_area
+        #FMUL fz_a+4, fz_a+8, tq
+        #SUBQ fz_area, tq, fz_area
+        #FMUL fz_a, fz_a, tq
+        #FMUL fz_a+4, fz_a+4, tv3
+        #ADDQ tq, tv3, tq
+        #BLEQ tq, fz_rm, +
+        #MOVQ tq, fz_rm
++       inc fz_i
+        lda fz_i
+        cmp fp_par+9
+        bne _edge
+        #BNEZ fz_area, +
+        #PERR E_PRISMAREA
++       lda fp_par+8                    ; shape: h, (first, n), orientation, 0
+        sta fsh+4
+        lda fp_par+9
+        sta fsh+5
+        lda #0
+        sta fsh+6
+        sta fsh+7
+        #MOVQ q_zero, fsh+12
+        #LDIMM ONE, fsh+8
+        bit fz_area+3
+        bpl +
+        #NEGQ fsh+8, fsh+8
++       #FMUL fsh, fsh, tq              ; br = sqrt(rm + h^2)
+        #ADDQ fz_rm, tq, tq
+        jsr fsqrt
+        stq fp_br
+        jmp fp_write
+
+; fz_a = corners A and A + 1 of pt_buf (16 bytes)
+fz_get:
+        asl
+        asl
+        asl
+        tax
+        ldy #0
+-       lda pt_buf,x
+        sta fz_a,y
+        inx
+        iny
+        cpy #16
+        bne -
+        rts
+
+; px_get / px_put work on the scene's points
+pts_base:
+        lda #<SC_PTS
+        sta px_base
+        lda #>SC_PTS
+        sta px_base+1
+        rts
 
 ; ex, ez at right angles to ey (fmr+12): h = (0, 0, 1) if |ey.z| < 1/2, else (1, 0, 0)
 basis:

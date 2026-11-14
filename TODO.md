@@ -9,7 +9,7 @@ Done
 
 - [x] Phase 1: the renderer core.
   - The scene read at run time.
-  - Primitives: sphere, box, cylinder, cone, plane.
+  - Primitives: sphere, box, cylinder, cone, plane (and prism, on trial: see below).
   - Booleans through interval lists, transforms, a camera that can turn.
   - Coloured lights, ambient light, a refractive index per material, checker pigments.
   - Bounding spheres.
@@ -26,6 +26,18 @@ Next
   - select (list and views), drag, type values, add objects;
   - preview; render (the final picture matches the models on every pixel);
   - save, new, open, export.
+- [ ] Prisms (not committed yet, on trial): an outline of 3 to 16 corners, extruded. Done
+  and tested in Xemu:
+  - the tracer (concave outlines give interval lists): `scenes/prism.pov` matches the model
+    on every pixel, and `default`, `shapes` and `parse1` still do;
+  - the MEGA65 parser: its tables match `pov.py` byte for byte;
+  - the modeller: Add, Prism; corner handles; pick, drag, insert (I), delete (DEL); the
+    properties (H, and CX / CZ of the picked corner); duplicate; save / open; export. A
+    render of an edited prism matched the models on every pixel.
+  - The corners are a pool of 255 in attic (`.MDL` version 3; older files aren't read).
+    Tested: 12 prisms in one document; corners added and removed in the first
+    of several prisms (the others' corners move); duplicate, delete, save, open.
+  - Not done: handles in the camera view; dragging the height; a mesh (triangles).
 
 Modeller: still to do
 ---------------------
@@ -38,7 +50,16 @@ Modeller: still to do
 - [ ] Undo.
 - [ ] Rotate and scale by dragging (keys or handles).
 - [ ] Editing lights' colours and the background as colours (now three numbers each).
-- [ ] Reading `.POV` files into the modeller.
+- [x] File, Open: a list of the disk's `.MDL` files (tested in Xemu by injected events:
+  scrolling, picking with a click and with the keys, Name..., Cancel, ESC).
+- [x] Menus, the Open list and the status-line prompt restore what was under them instead
+  of redrawing the screen (tested: the screen after all of them matches one without them).
+- [x] File, Exit (back to BASIC through kstream; tested in Xemu: READY. comes back).
+- [x] Show / hide each object in the views (a box in the list; tested in Xemu: hiding a group hides its parts, hidden objects aren't picked, the export still has them).
+- [ ] Hide objects from renders too (a second box, or a menu item).
+- [ ] Save as: the same list, to pick a name to replace (now typed only).
+- [ ] File, Render POV...: render a `.POV` file from the disk (the parser and tracer can).
+- [ ] Reading `.POV` files into the modeller (at least the ones it writes itself).
 - [ ] A material list to pick from (now Next / Previous).
 
 Was in the plan (kept for reference)

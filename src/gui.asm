@@ -434,9 +434,13 @@ _wait:
         jsr gm_skip_string
         bra -
 +       lda gm_cmd
-        rts
+        bra +
 _none:
         lda #0
++       pha                             ; what was under it, back
+        ldx #0
+        jsr gui_restore
+        pla
         rts
 GM_WIDTH        = 18                    ; a drop-down's width in columns
 
@@ -492,6 +496,8 @@ gui_menu_draw:
         adc gm_n
         adc #11
         sta d6_y1
+        ldx #0                          ; (gui_menu puts this back when it closes)
+        jsr gui_save
         lda #GC_PANEL
         jsr gui_fill
         lda #GC_FRAME
@@ -536,12 +542,169 @@ gm_cmd:         .byte 0
 gm_y:           .byte 0
 
 ;---------------------------------------------------------------------------------------
-; gui_edit: type on the status line
+; gui_save / gui_restore: X = a slot (0 or 1). Save keeps what is on the screen in the
+; rectangle d6_x .. d6_y1 (rounded out to whole 8x8 cells), in attic; restore puts it
+; back. The cells of one 8-pixel band are one run of memory (fcm640's layout), so a band
+; is one DMA copy. Menus and the Open dialog use slot 0, typing on the status line slot 1.
+;---------------------------------------------------------------------------------------
+GS_ATTIC        = $8310000              ; slot n at GS_ATTIC + n * $8000 (32 KB each)
+gui_save:
+        stx gs_s
+        lda d6_x                        ; cells: c0 = x >> 3, nc = (x1 >> 3) - c0 + 1
+        ldy d6_x+1
+        jsr gs_cell
+        sta gs_c0,x
+        lda d6_x1
+        ldy d6_x1+1
+        jsr gs_cell
+        sec
+        sbc gs_c0,x
+        inc a
+        sta gs_nc,x
+        lda d6_y                        ; bands: b0 = y >> 3, nb = (y1 >> 3) - b0 + 1
+        lsr
+        lsr
+        lsr
+        sta gs_b0,x
+        lda d6_y1
+        lsr
+        lsr
+        lsr
+        sec
+        sbc gs_b0,x
+        inc a
+        sta gs_nb,x
+        lda #0
+        bra gs_copy
+gui_restore:
+        stx gs_s
+        lda #1
+gs_copy:
+        sta gs_dir
+        ldx gs_s
+        lda gs_nc,x                     ; bytes a band: nc * 64
+        sta gs_n
+        lda #0
+        sta gs_n+1
+        ldy #6
+-       asl gs_n
+        rol gs_n+1
+        dey
+        bne -
+        lda gs_c0,x                     ; the screen: F640_BUF0 + c0 * 64 + b0 * 5120
+        sta gs_fb
+        lda #0
+        sta gs_fb+1
+        ldy #6
+-       asl gs_fb
+        rol gs_fb+1
+        dey
+        bne -
+        lda #`F640_BUF0
+        sta gs_fb+2
+        ldy gs_b0,x
+_b0:    cpy #0                          ; + 5120 (= $1400) per band
+        beq _b0done
+        clc
+        lda gs_fb+1
+        adc #$14
+        sta gs_fb+1
+        bcc _b0next
+        inc gs_fb+2
+_b0next:
+        dey
+        bra _b0
+_b0done:
+        lda #0                          ; the slot
+        sta gs_sv
+        sta gs_sv+1
+        txa
+        lsr
+        lda #0
+        ror
+        sta gs_sv+1                     ; (slot 1: + $8000)
+        lda gs_nb,x
+        sta gs_k
+_band:
+        ldx #0
+        ldy #0
+        lda gs_dir
+        bne _back
+-       lda gs_fb,x                     ; save: screen -> slot
+        sta ptr1,x
+        lda gs_sv_full,x
+        sta ptr2,x
+        inx
+        cpx #4
+        bne -
+        bra _go
+_back:
+-       lda gs_sv_full,x                ; restore: slot -> screen
+        sta ptr1,x
+        lda gs_fb,x
+        sta ptr2,x
+        inx
+        cpx #4
+        bne -
+_go:    lda gs_n
+        sta tmp5
+        lda gs_n+1
+        sta tmp5+1
+        jsr dma_copy_far
+        clc                             ; the next band: screen + 5120, slot + n
+        lda gs_fb+1
+        adc #$14
+        sta gs_fb+1
+        bcc +
+        inc gs_fb+2
++       clc
+        lda gs_sv
+        adc gs_n
+        sta gs_sv
+        lda gs_sv+1
+        adc gs_n+1
+        sta gs_sv+1
+        dec gs_k
+        bne _band
+        rts
+; A = (Y:A) >> 3 (x up to 2047)
+gs_cell:
+        lsr
+        lsr
+        lsr
+        sta gs_t
+        tya
+        asl
+        asl
+        asl
+        asl
+        asl
+        ora gs_t
+        rts
+gs_t:           .byte 0
+gs_s:           .byte 0
+gs_dir:         .byte 0
+gs_k:           .byte 0
+gs_n:           .word 0
+gs_fb:          .byte 0, 0, 0, 0        ; (28-bit: byte 3 is 0)
+gs_sv_full:
+gs_sv:          .word 0                 ; the slot: GS_ATTIC + gs_sv
+                .byte (GS_ATTIC >> 16) & $ff, GS_ATTIC >> 24
+gs_c0:          .fill 2
+gs_nc:          .fill 2
+gs_b0:          .fill 2
+gs_nb:          .fill 2
+
+;---------------------------------------------------------------------------------------
+; gui_edit: type on the status line (what was there comes back afterwards)
 ;---------------------------------------------------------------------------------------
 GE_MAX          = 30
 gui_edit:
         sta ge_prompt
         stx ge_prompt+1
+        #GXY 0, STATUS_Y - 1, 639, 199
+        ldx #1
+        jsr gui_save
         ldx #0                          ; the text's length
 -       lda ge_buf,x
         beq +
@@ -573,6 +736,8 @@ _wait:
         lda ev_key
         cmp #K_RETURN
         bne +
+        ldx #1
+        jsr gui_restore
         clc
         rts
 +       cmp #K_ESC
@@ -602,6 +767,8 @@ _wait:
         sta ge_buf,x
         bra _draw
 _cancel:
+        ldx #1
+        jsr gui_restore
         sec
         rts
 ge_prompt:      .word 0

@@ -264,6 +264,7 @@ world_all:
         sta wa_i
         lda #$ff
         sta wa_seld                     ; the depth below which things are selected
+        sta wa_hd                       ; and hidden
 _o:
         lda wa_i
         cmp doc_nobj
@@ -299,6 +300,25 @@ _notin:
 +       lda #0
 _flag:  ldx wa_i
         sta sel_flag,x
+        ; hidden: by its own box, or inside a hidden group
+        lda wa_hd
+        cmp #$ff
+        beq _hown
+        cmp wa_d
+        bcs _hleft                      ; (not deeper: out of that group)
+        lda #1
+        bra _hput
+_hleft: lda #$ff
+        sta wa_hd
+_hown:  ldy #O_FLAGS
+        lda (op),y
+        and #OF_HIDE
+        beq _hput
+        lda wa_d
+        sta wa_hd
+        lda #1
+_hput:  ldx wa_i
+        sta hid_flag,x
         ; L = rotations of (scale I), t = pos
         jsr local_matrix
         ; W = P L, P = the parent's (wstk at depth - 1), or L at depth 0
@@ -537,7 +557,10 @@ obj_origin:
 ;---------------------------------------------------------------------------------------
 draw_obj:
         ldx dv_i
-        lda obj_lo,x
+        lda hid_flag,x                  ; hidden: not drawn
+        beq +
+        rts
++       lda obj_lo,x
         sta op
         lda obj_hi,x
         sta op+1
@@ -572,7 +595,99 @@ draw_obj:
         asl
         tax
         jmp (_t,x)
-_t:     .word wf_sphere, wf_box, wf_cyl, wf_cone, wf_plane
+_t:     .word wf_sphere, wf_box, wf_cyl, wf_cone, wf_plane, wf_prism
+
+; a prism: its outline at y = -h/2 and +h/2, and an edge up from each corner. Selected
+; (and in an ortho view): a handle on each corner (filled: the one picked)
+wf_prism:
+        ldx dv_i
+        jsr pp_setup
+        #NEGQ ci_hh, ci_h
+        lda #0
+        sta wp_k
+_e:
+        lda wp_k
+        jsr pt_get_a
+        ldx wp_k
+        inx
+        cpx wp_n
+        bne +
+        ldx #0
++       txa
+        jsr pt_get_b
+        #MOVQ ci_h, sg_a+4
+        #MOVQ ci_h, sg_b+4
+        jsr seg_local
+        #MOVQ ci_hh, sg_a+4
+        #MOVQ ci_hh, sg_b+4
+        jsr seg_local
+        #VMOV sg_a, sg_b
+        #MOVQ ci_h, sg_b+4
+        jsr seg_local
+        inc wp_k
+        lda wp_k
+        cmp wp_n
+        bne _e
+        lda dv_i
+        cmp ms_sel
+        bne _r
+        lda dv_v
+        cmp #3
+        beq _r
+        lda #0
+        sta wp_k
+_h:
+        lda wp_k
+        jsr pt_world
+        #VMOV pk_w, pj_w
+        jsr project
+        bcc _hn
+        sec
+        lda pj_sx
+        sbc #2
+        sta d6_x
+        lda pj_sx+1
+        sbc #0
+        sta d6_x+1
+        clc
+        lda pj_sx
+        adc #2
+        sta d6_x1
+        lda pj_sx+1
+        adc #0
+        sta d6_x1+1
+        sec
+        lda pj_sy
+        sbc #2
+        sta d6_y
+        lda pj_sy+1
+        sbc #0
+        sta d6_y+1
+        clc
+        lda pj_sy
+        adc #2
+        sta d6_y1
+        lda pj_sy+1
+        adc #0
+        sta d6_y1+1
+        jsr pt_valid
+        bcc _frame
+        lda ms_pt
+        cmp wp_k
+        bne _frame
+        lda #GC_YELLOW
+        jsr gui_fill
+        bra _hn
+_frame:
+        lda #GC_CYAN
+        sta d6_col
+        jsr d6_frame
+_hn:
+        inc wp_k
+        lda wp_k
+        cmp wp_n
+        bne _h
+_r:     rts
 
 ; a sphere: three great circles
 wf_sphere:

@@ -15,10 +15,29 @@ do_command:
         cmp #CMD_SAVEAS
         beq _ask
         cmp #CMD_OPEN
-        beq _ask
+        beq _open
         bra _file
 _render:
         jmp do_render
+_open:  ; the disk's documents to pick from (or a name typed)
+        lda #OVL_WRITE
+        jsr ovl_load
+        jsr open_dialog
+        bcc +
+        lda wr_err
+        jsr dc_status_msg
+        lda #<dc_msg
+        ldy #>dc_msg
+        jmp _back
++       cmp #1
+        beq _typed
+        cmp #2
+        bne _file
+        lda #<dc_cancel
+        ldy #>dc_cancel
+        jmp _back
+_typed: lda #OVL_MODEL                  ; (the prompt's status line, then the writer again)
+        jsr ovl_load
 _ask:   ; a file name (without its extension)
         ldx #0
 -       lda ms_name,x

@@ -46,6 +46,8 @@ box      { <x1, y1, z1>, <x2, y2, z2>  modifiers }
 cylinder { <base>, <cap>, r  modifiers }
 cone     { <base>, r1, <cap>, r2  modifiers }
 plane    { <normal>, d  modifiers }                  // the solid half-space below
+prism    { [linear_sweep] [linear_spline] h1, h2, n, <x1, z1>, ... <xn, zn>  modifiers }
+                                // an outline in x-z (3 to 16 corners), from y = h1 to h2
 union        { object object ...  modifiers }
 merge        { object object ...  modifiers }        // union without the inner surfaces
 intersection { object object ...  modifiers }
@@ -80,6 +82,11 @@ below 32767. Keep the scene within about 120 units of the camera.
 - Spheres, cylinders, cones and planes may be scaled only uniformly. A box may be scaled
   along its own axes before it is rotated (anything that would shear it is an error).
 - `open` cylinders and cones aren't supported (they aren't solids).
+- A prism is `linear_sweep linear_spline` only, with 3 to 16 corners (255 points in a scene,
+  counting one more per prism for closing it). A
+  last point that repeats the first is dropped: the outline is closed anyway. It may be
+  concave or cross itself (inside means an odd number of edges crossed). Like a box, it
+  may be scaled along its own axes.
 - A texture is transformed with its object, whether it comes before or after the
   transforms. POV-Ray only transforms textures given before the transforms, so the
   modeller always writes the texture first.
@@ -115,12 +122,12 @@ Python model builds the same tables bit for bit.
 
 | Offset | Size | What |
 |---|---|---|
-| 0 | 1 | type: 0 sphere, 1 box, 2 cylinder, 3 cone, 4 plane |
+| 0 | 1 | type: 0 sphere, 1 box, 2 cylinder, 3 cone, 4 plane, 5 prism |
 | 1 | 1 | flags: bit 0 rotated (R isn't the identity), bit 1 no_shadow |
 | 2 | 1 | material |
 | 4 | 12 | c: the local origin (sphere centre, box centre, cylinder/cone middle, a point on the plane) |
 | 16 | 36 | R: the local x, y, z axes in world coordinates (rows). local = R (p - c) |
-| 52 | 16 | shape: sphere r², 1/r, r; box half sizes; cylinder r², h, 1/r; cone a, b, h, 1/sqrt(1+b²) |
+| 52 | 16 | shape: sphere r², 1/r, r; box half sizes; cylinder r², h, 1/r; cone a, b, h, 1/sqrt(1+b²); prism h, (first point, corners), orientation (±1) |
 | 68 | 36 | texture matrix: the inverse of the object's transform, with the pigment's own transform |
 | 104 | 12 | texture offset |
 | 116 | 12 | bounding sphere: centre (radius² in the root table) |
@@ -128,7 +135,12 @@ Python model builds the same tables bit for bit.
 In local coordinates: the sphere is centred on the origin; the box is `|x| <= hx`, `|y| <= hy`,
 `|z| <= hz`; the cylinder is `x² + z² <= r²`, `|y| <= h`; the cone is
 `x² + z² <= (a + b y)²`, `|y| <= h` (radius `r1` at `y = -h`, `r2` at `y = +h`); the plane is
-the half-space `y <= 0`.
+the half-space `y <= 0`; the prism is `|y| <= h` inside its outline.
+
+**Prism points** (in attic at `$8300800`, up to 255 x 8 bytes: the tracer copies a prism's
+by DMA when it tests it): x and z of each corner, already scaled. Each outline is stored closed (its first corner again at the end), so edge k runs
+from point k to k + 1. The orientation is the sign of the outline's area: it turns each
+edge's `(ez, -ex)` into the outward normal.
 
 **Material record** (64 bytes, up to 16): diffuse, phong, reflection, transmit; colour;
 second colour (checker); ambient (already multiplied by `ambient_light`); phong_size; flags
@@ -149,11 +161,17 @@ The tracer
   R is orthonormal, so `t` is the same in both frames and no precision is lost to scaling.
   Unrotated primitives skip the multiplications.
 - **A root that is a primitive** gives its nearest hit beyond EPS directly.
-- **A boolean root** is evaluated as interval lists along the ray. Each primitive is convex,
-  so it gives one interval (or none; a plane gives a half-line). One sweep routine combines
+- **A boolean root** is evaluated as interval lists along the ray. Each primitive but the
+  prism is convex, so it gives one interval (or none; a plane gives a half-line). One sweep routine combines
   two lists for union, intersection and difference, tracking whether the ray is inside A and
   inside B. Surfaces taken from the subtracted object get flipped normals. A list holds up
   to 8 intervals.
+- **A prism** may be concave, so it gives a list of its own (a root that is one prism goes
+  through the list path too). The ray's line crosses the outline's edges at sorted `t` (an
+  edge holds its start point, not its end); each pair of crossings is a stretch inside,
+  narrowed to the slab `|y| <= h`. A ray along the axis is inside all along the slab, or
+  not at all (an odd count of crossings ahead along x). Each edge costs one division and
+  six multiplications.
 - **Self-hits:** a ray remembers the primitive it leaves. For that primitive, the root
   nearest zero is set to exactly zero, so it can't be hit again through rounding. This is
   the same idea as the current `2 tca`, made general.
@@ -173,11 +191,13 @@ program renders `SCENE.POV` from the disk at boot and saves `SCENE.IFF`.
 |---|---|
 | `$2001`-`$BFFF` | Program, variables and the compiled scene tables |
 | `$0800`, `$C000` | The two 4000-byte screen RAMs (`fcm640`) |
-| `$12000`-`$1F7FF` | The scene file's text while it is parsed (54 KB) |
+| `$12000`-`$13F3F` | The modeller's screen RAMs (`fcm640`) |
+| `$14000`-`$1EFFF` | The scene file's text while it is parsed (44 KB), and `.MDL` files while they load |
 | `$20000`-`$3F3FF` | Framebuffer 1: the final picture |
 | `$40000`-`$5F3FF` | Framebuffer 0: the preview while rendering; the modeller's screen |
 | `$8000000` | The 24-bit picture (384,000 bytes) |
 | `$8060000` | Recolouring's work areas |
+| `$8300000` | The modeller's corner pool (255 corners), the scene's prism points (`$8300800`), room for moving corners (`$8301000`) |
 | `$8100000`... | Modeller: saved screen areas, undo, the scene being edited |
 | `$8200000`... | Animation frames (128,000 bytes each) |
 
@@ -210,7 +230,8 @@ the preview. A finished render is shown full screen with its own palette.
 
 - **Views:** top, front and side, orthographic, with zoom and pan; the camera view in
   perspective. Primitives are drawn as their outlines: circles for spheres, edges for boxes,
-  rings and lines for cylinders and cones, a grid for planes. Boolean parts show all their
+  rings and lines for cylinders and cones, a grid for planes, the outline at the top and
+  bottom for prisms. Boolean parts show all their
   pieces, the selected object highlighted.
 - **Editing:** click to select; drag to move in a view's plane; keys or handles for rotating
   and scaling; number entry in the properties panel. Add primitives, booleans and lights from

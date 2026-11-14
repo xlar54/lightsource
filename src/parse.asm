@@ -99,13 +99,17 @@ E_ANGLE         = 39
 E_FILE          = 40
 E_BIG           = 41
 E_VSTACK        = 42
+E_PRISMPTS      = 43
+E_PRISMH        = 44
+E_PRISMAREA     = 45
+E_PTS           = 46
 
 parse_msgs:
         .word _m0, _m1, _m2, _m3, _m4, _m5, _m6, _m7, _m8, _m9
         .word _m10, _m11, _m12, _m13, _m14, _m15, _m16, _m17, _m18, _m19
         .word _m20, _m21, _m22, _m23, _m24, _m25, _m26, _m27, _m28, _m29
         .word _m30, _m31, _m32, _m33, _m34, _m35, _m36, _m37, _m38, _m39
-        .word _m40, _m41, _m42
+        .word _m40, _m41, _m42, _m43, _m44, _m45, _m46
 _m0:    .null "unexpected character"
 _m1:    .null "unterminated comment"
 _m2:    .null "number too big"
@@ -149,9 +153,13 @@ _m39:   .null "the camera angle must be 0 to 180"
 _m40:   .null "can't read the scene file"
 _m41:   .null "the scene file is too big"
 _m42:   .null "expression too complicated"
+_m43:   .null "a prism has 3 to 16 corners"
+_m44:   .null "a prism needs a height"
+_m45:   .null "the prism outline has no area"
+_m46:   .null "too many prism corners (255 in all)"
 
 ; ---- keywords: KW_x = its position in kw_text ----
-KWLIST = ["camera", "location", "look_at", "sky", "angle", "right", "up", "perspective", "light_source", "shadowless", "background", "global_settings", "max_trace_level", "ambient_light", "assumed_gamma", "sphere", "box", "cylinder", "cone", "plane", "union", "merge", "intersection", "difference", "object", "open", "texture", "pigment", "finish", "interior", "color", "colour", "rgb", "rgbt", "rgbf", "rgbft", "filter", "transmit", "checker", "translate", "rotate", "scale", "no_shadow", "hollow", "ambient", "diffuse", "phong", "phong_size", "specular", "roughness", "reflection", "ior", "x", "y", "z", "pi", "clock", "sin", "cos", "sqrt", "abs", "radians", "degrees"]
+KWLIST = ["camera", "location", "look_at", "sky", "angle", "right", "up", "perspective", "light_source", "shadowless", "background", "global_settings", "max_trace_level", "ambient_light", "assumed_gamma", "sphere", "box", "cylinder", "cone", "plane", "prism", "union", "merge", "intersection", "difference", "object", "open", "texture", "pigment", "finish", "interior", "color", "colour", "rgb", "rgbt", "rgbf", "rgbft", "filter", "transmit", "checker", "translate", "rotate", "scale", "no_shadow", "hollow", "ambient", "diffuse", "phong", "phong_size", "specular", "roughness", "reflection", "ior", "x", "y", "z", "pi", "clock", "sin", "cos", "sqrt", "abs", "radians", "degrees", "linear_sweep", "linear_spline"]
 NKW             = len(KWLIST)
 KW_CAMERA       = 0
 KW_LOCATION     = 1
@@ -173,50 +181,53 @@ KW_BOX          = 16
 KW_CYLINDER     = 17
 KW_CONE         = 18
 KW_PLANE        = 19
-KW_UNION        = 20
-KW_MERGE        = 21
-KW_INTER        = 22
-KW_DIFF         = 23
-KW_OBJECT       = 24
-KW_OPEN         = 25
-KW_TEXTURE      = 26
-KW_PIGMENT      = 27
-KW_FINISH       = 28
-KW_INTERIOR     = 29
-KW_COLOR        = 30
-KW_COLOUR       = 31
-KW_RGB          = 32
-KW_RGBT         = 33
-KW_RGBF         = 34
-KW_RGBFT        = 35
-KW_FILTER       = 36
-KW_TRANSMIT     = 37
-KW_CHECKER      = 38
-KW_TRANSLATE    = 39
-KW_ROTATE       = 40
-KW_SCALE        = 41
-KW_NOSHADOW     = 42
-KW_HOLLOW       = 43
-KW_AMBIENT      = 44
-KW_DIFFUSE      = 45
-KW_PHONG        = 46
-KW_PHONGSIZE    = 47
-KW_SPECULAR     = 48
-KW_ROUGHNESS    = 49
-KW_REFLECTION   = 50
-KW_IOR          = 51
-KW_X            = 52
-KW_Y            = 53
-KW_Z            = 54
-KW_PI           = 55
-KW_CLOCK        = 56
-KW_SIN          = 57
-KW_COS          = 58
-KW_SQRT         = 59
-KW_ABS          = 60
-KW_RADIANS      = 61
-KW_DEGREES      = 62
-        .cerror NKW != 63, "keyword numbers"
+KW_PRISM        = 20
+KW_UNION        = 21
+KW_MERGE        = 22
+KW_INTER        = 23
+KW_DIFF         = 24
+KW_OBJECT       = 25
+KW_OPEN         = 26
+KW_TEXTURE      = 27
+KW_PIGMENT      = 28
+KW_FINISH       = 29
+KW_INTERIOR     = 30
+KW_COLOR        = 31
+KW_COLOUR       = 32
+KW_RGB          = 33
+KW_RGBT         = 34
+KW_RGBF         = 35
+KW_RGBFT        = 36
+KW_FILTER       = 37
+KW_TRANSMIT     = 38
+KW_CHECKER      = 39
+KW_TRANSLATE    = 40
+KW_ROTATE       = 41
+KW_SCALE        = 42
+KW_NOSHADOW     = 43
+KW_HOLLOW       = 44
+KW_AMBIENT      = 45
+KW_DIFFUSE      = 46
+KW_PHONG        = 47
+KW_PHONGSIZE    = 48
+KW_SPECULAR     = 49
+KW_ROUGHNESS    = 50
+KW_REFLECTION   = 51
+KW_IOR          = 52
+KW_X            = 53
+KW_Y            = 54
+KW_Z            = 55
+KW_PI           = 56
+KW_CLOCK        = 57
+KW_SIN          = 58
+KW_COS          = 59
+KW_SQRT         = 60
+KW_ABS          = 61
+KW_RADIANS      = 62
+KW_DEGREES      = 63
+KW_LINSWEEP     = 64
+KW_LINSPLINE    = 65
+        .cerror NKW != 66, "keyword numbers"
 kw_text:
         .for kwi = 0, kwi < NKW, kwi += 1
         .null KWLIST[kwi]

@@ -1,4 +1,4 @@
-﻿# MEGA65 programming notes
+# MEGA65 programming notes
 
 The one reference for MEGA65 machine-code work: memory, boot and KERNAL, MAP, DMA, video, audio,
 input, files, maths, Ethernet, Xemu and real hardware, and the toolchain. `.claude/CLAUDE.md`
@@ -49,7 +49,7 @@ file with a marker per page, then search for register names such as `MIXREGSEL`,
 | `$00600-$007FF` | **Not free**: the C65 keeps sprite shapes there. |
 | `$0FF00-$0FFFF` | KERNAL (book) |
 | `$10000-$11FFF` | **Reserved**: C65 DOS variables and buffers. Disk I/O overwrites it. Never load here. |
-| `$12000-$1F6FF` | BASIC arrays and strings: free once BASIC isn't used. Bank-1 data usually starts at `$12000`. |
+| `$12000-$1F6FF` | BASIC arrays and strings: free once BASIC isn't used. Bank-1 data usually starts at `$12000`. **But the DOS still writes near the top:** renderer65 found the date string (`13-NOV-2026 19:1...`) at `$1F6C4` after disk I/O, inside a table it had put at `$1F000`. Keep data that must survive disk I/O out of `$1F000`-`$1F7FF` (attic is safe). |
 | `$1F700-$1F7FF` | Reserved (book) |
 | `$1F800-$1FFFF` | First 2 KB of colour RAM (a window). A buffer that reaches it garbles the top character rows. |
 | `$40000-$5FFFF` | Free after the takeover; the usual place for framebuffers and boot staging. BASIC65's bitplane graphics live here, and loading through bank 5 overwrites whatever is there (for example sprite shapes at `$5FA00`). |
@@ -572,6 +572,8 @@ The multiplier's output is live: `MULTOUT` changes as soon as an input does. To 
 - **Mid-frame TEXTXPOS changes:** Xemu ignores them.
 - **Writes to unmapped addresses:** Xemu logs "Unhandled memory write" with the address and PC; hardware silently loses them.
 
+**RUN again after returning to BASIC doesn't reload the program.** Its data is as the last run left it: flags like `inited` stay set, so set-up is skipped, while the KERNAL has reset the VIC (renderer65's mouse pointer came back as garbage: the sprite pointers were the KERNAL's `` again). renderer65 keeps a copy of its resident part as loaded in attic on the first start (a byte that is 0 in the file says which start this is) and copies it back on every later start, before anything else.
+
 When something works in Xemu and not on hardware, suspect the environment (MAP, `$01`, `$D030`, IRQ state, hardcoded boot values) before the logic. Save and restore boot state rather than hardcoding it.
 
 ### Xemu tools
@@ -592,6 +594,7 @@ When something works in Xemu and not on hardware, suspect the environment (MAP, 
   - `m <28-bit addr>` reads (`m ffd3060` for VIC-IV, `m 8000000` for attic); `r` shows PC and MAP live.
   - The C65 KERNAL image is at `$3E000`.
   - `b` breakpoints didn't stop the CPU, but `t1`/`t` single-stepping from a hold point did.
+- **Typing into BASIC from a test:** the C65 KERNAL's keyboard buffer is ``, its count `` (from ADDKEY, `` -> ``). Poke `52 55 4E 0D` and `04` to type RUN and RETURN at the `READY.` prompt. The monitor's `g` is no substitute for RUN: BASIC's MAP is still in place, and the jump ran into a BRK.
 - Each poke or peek over the monitor takes about 0.3 s, which is many frames. Give the program a frame-timed input script (pairs of joystick bits and frame counts played into a `dbg_joy` byte) instead of timing pokes. In sleepless mode, idle timers run out within seconds; use real-time mode to catch timed animations.
 - Expose `dbg_*` bytes and state bytes to poke and peek. Count the frames actually drawn as well as the frame counter. A per-tick trace buffer (x/y/state per logic tick) helps compare against expected motion. A program can also copy its text output to attic for the harness to read.
 - Measure the frame rate in real-time mode by reading a frame counter twice, a few seconds apart.

@@ -12,6 +12,10 @@ MAX_PRIM        = 32
 MAX_MAT         = 16
 MAX_LIGHT       = 16
 MAX_ROOT        = 32
+MAX_PTS         = 255                   ; prism points in all (each outline stored closed)
+SC_PTS          = $0800                 ; the points (x and z, 8 bytes each): in attic,
+                                        ; at FAR_ADDR + SC_PTS (doc.asm)
+MAX_PRISM_PTS   = 16                    ; corners of one prism
 PRIM_SIZE       = 128
 MAT_SIZE        = 80
 LIGHT_SIZE      = 28
@@ -23,6 +27,8 @@ T_BOX           = 1
 T_CYL           = 2
 T_CONE          = 3
 T_PLANE         = 4
+T_PRISM         = 5                     ; shape: half height, first point (byte 4) and
+                                        ; corners (byte 5), orientation (+-ONE)
 F_ROT           = 1                     ; prim flags
 F_NOSHADOW      = 2
 MF_CHECKER      = 1                     ; material flags
@@ -42,6 +48,7 @@ SC_NMAT         = 1
 SC_NLIGHT       = 2
 SC_NROOT        = 3
 SC_MAXD         = 4
+SC_NPTS         = 5                     ; prism points in use
 SC_BG           = 8
 SC_CAM_O        = 20
 SC_CAM_R        = 32
@@ -80,6 +87,9 @@ SCENE_SIZE      = HDR_SIZE + LIGHT_SIZE * MAX_LIGHT + ROOT_SIZE * MAX_ROOT + 256
         .if DBG_SCENEBIN
 scene:          .binary "scene.bin"     ; a test build: the tables as pov.py made them
         .cerror * - scene != SCENE_SIZE, "scene.bin is the wrong size"
+scene_pts:      .binary "scenepts.bin"  ; and the prism points in use (boot copies them
+scene_pts_end:                          ; to SC_PTS)
+        .cerror scene_pts_end - scene_pts > 8 * MAX_PTS, "scenepts.bin is too big"
         .else
         .section bss
 scene:          .fill SCENE_SIZE
@@ -97,6 +107,7 @@ sc_nmat         = sc_hdr + SC_NMAT
 sc_nlight       = sc_hdr + SC_NLIGHT
 sc_nroot        = sc_hdr + SC_NROOT
 sc_maxd         = sc_hdr + SC_MAXD
+sc_npts         = sc_hdr + SC_NPTS
 sc_bg           = sc_hdr + SC_BG
 sc_cam_o        = sc_hdr + SC_CAM_O
 sc_cam_r        = sc_hdr + SC_CAM_R

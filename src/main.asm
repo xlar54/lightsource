@@ -103,9 +103,45 @@ done:           .byte 0
 ticks:          .byte 0, 0, 0           ; frames since the start (IRQ)
 ticks_render:   .byte 0, 0, 0
 ticks_recolour: .byte 0, 0, 0
+res_ran:        .byte 0                 ; 0 as loaded; 1 once it has started
+
+RES_COPY        = $8320000              ; attic: the resident part as it was loaded
 
 start:
         jsr dma_init
+        ; RUN again after File, Exit doesn't reload the program, but it has changed its own
+        ; data (gui_inited, ms_inited, ...). So the first start after a LOAD keeps a copy
+        ; of it as loaded, and each later start puts that back. (The copy writes over this
+        ; code with the same bytes.)
+        lda #<$2001
+        sta ptr1
+        sta ptr2
+        lda #>$2001
+        sta ptr1+1
+        sta ptr2+1
+        lda #0
+        sta ptr1+2
+        sta ptr1+3
+        lda #(RES_COPY >> 16) & $ff
+        sta ptr2+2
+        lda #RES_COPY >> 24
+        sta ptr2+3
+        lda #<(res_image_end - $2001)
+        sta tmp5
+        lda #>(res_image_end - $2001)
+        sta tmp5+1
+        lda res_ran
+        beq +
+        ldx #3                          ; again: from the copy
+-       lda ptr1,x
+        ldy ptr2,x
+        sta ptr2,x
+        sty ptr1,x
+        dex
+        bpl -
++       jsr dma_copy_far
+        lda #1
+        sta res_ran
         ; the overlays into attic, through the KERNAL while BASIC is untouched
         lda #0
         sta ovl_n
@@ -211,6 +247,19 @@ _ovl:
         sta ticks
         sta ticks+1
         sta ticks+2
+        .endif
+        .if DBG_SCENEBIN
+        lda #<scene_pts                 ; the test's prism points into place
+        sta px_b0
+        lda #>scene_pts
+        sta px_b0+1
+        lda #<SC_PTS
+        sta px_base
+        lda #>SC_PTS
+        sta px_base+1
+        lda #0
+        ldx #(scene_pts_end - scene_pts) / 8
+        jsr px_put
         .endif
         lda #OVL_TRACE
         jsr ovl_load
@@ -321,6 +370,7 @@ ovl_name:       .text "OVL0"
         .include "guitest.asm"
         .endif
         .include "scene.asm"
+res_image_end:                          ; (the end of what LOAD puts in memory)
         .dsection bss
         .send res
 

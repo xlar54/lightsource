@@ -7,7 +7,7 @@ is a whole system on the MEGA65: a 640x200 graphical modeller, the scene languag
 and saving the picture (see [docs/DESIGN.md](docs/DESIGN.md)).
 
 What works now:
-- **The scene language:** spheres, boxes, cylinders, cones and planes; `union`, `merge`,
+- **The scene language:** spheres, boxes, cylinders, cones, planes and prisms; `union`, `merge`,
   `intersection` and `difference`; `translate`, `rotate` and `scale`; checker and plain
   pigments; Phong finishes, reflection and refraction with a refractive index for each
   material; coloured lights, a camera that can turn, and `#declare`. The MEGA65 reads the
@@ -35,6 +35,10 @@ tinyraytracer's scene as its document.
   Lights are orange crosses; the camera is a green cross with a line to where it looks.
 - **Object list** (top right): objects as an outline (a group's parts are indented under
   it), then the lights and the camera. Click one to select it.
+  The box at the left of each object shows it in the views (filled) or hides it (empty):
+  click the box to change it. A hidden group hides its parts (their names go grey), and
+  hidden objects can't be picked in the views. Renders and previews still have them.
+  It is saved with the document.
 - **Properties** (bottom right): position, rotation (degrees), scale and sizes, and the
   material. Click a number to type a new one (RETURN takes it, ESC leaves it). Click the
   name to rename the object, or the material to step to the next one.
@@ -43,21 +47,37 @@ tinyraytracer's scene as its document.
 - **Mouse in the views:** click near an object's centre, a light or the camera to select it.
   Drag to move it in that view's plane.
 - **Menus:**
-  - **File:** New, Open, Save, Save as, Export POV, Preview, Render.
+  - **File:** New, Open, Save, Save as, Export POV, Preview, Render, Exit (back to BASIC,
+    after Y: anything not saved is lost).
+  - A menu, the Open list and typing on the status line put back what they covered when
+    they close (saved in attic), so only commands that change something redraw the views.
   - **Edit:** Delete, Duplicate, Move up and down, Indent (into the group above),
     Outdent.
-  - **Add:** the five primitives, a light, and the four booleans. A new boolean takes the
+  - **Add:** the six primitives, a light, and the four booleans. A new boolean takes the
     selected object into itself.
   - **Material:** Next, Previous, New (a copy), Edit (the properties panel then shows the
     material).
   - **View:** zoom, reset.
-- **Keys:** `+`/`-` zoom, DEL delete, R render, P preview, S save.
+- **Prisms** are the shape with points to edit. The selected prism has a handle on each
+  corner in the top, front and side views (at its top). Click one to pick it (it fills
+  in, and the panel shows its CX and CZ), and drag it to move it. I adds a corner half way
+  to the next one, and DEL removes the picked corner. A prism has 3 to 16 corners. All the
+  prisms in a document share a pool of 255 corners (in attic RAM), so there can be as many
+  as the 32 objects allow. A new one is a house shape, 1 high.
+- **`MEGA65.MDL`** on the disk is an example: the word in prisms (the A's and the 6's holes
+  are boxes cut out with a Difference), glass balls, gold cones and a mirror ball. File,
+  Open, then click `MEGA65`. It is made by `private/tools/make_mdl.py` (`scenes/mega65.mdl`).
+- **Keys:** `+`/`-` zoom, DEL delete (the picked corner, or the selection), I add a
+  corner, R render, P preview, S save.
 - **Render** writes the document out as scene text, parses it and renders it full screen.
   Press S on the picture to save it as `NAME.IFF`; any other key or a click goes back.
 - **Preview** is quicker: every 4th pixel of every 2nd line, at most one bounce.
 - **Files:**
   - Save writes `NAME.MDL`, the document itself.
   - Export POV writes `NAME.POV`: scene text the renderer, or POV-Ray, can read.
+  - Open lists the disk's `.MDL` documents in the right-hand panel (up to 48; "more" and
+    the panel's title scroll it). Click one, or use the cursor keys and RETURN. Name...
+    asks for a name instead; Cancel or ESC goes back.
   - The modeller can't read `.POV` files back; Open reads `.MDL`.
 
 How the scene text is written:
@@ -134,7 +154,7 @@ attic; `ovl_load` copies one into the window at `$8000-$CFFF` when it's needed.
 | Overlay 2 | `parse.asm`, `parse2.asm`, `parsev.asm` | The scene language: tokenizer, expressions, objects, transforms, materials, final compile |
 | Overlay 3 | `save.asm` | IFF ILBM files |
 | Overlay 4 | `model.asm`, `model2.asm`, `model3.asm`, `doctiny.asm` | The modeller: views, wireframes, list, properties, commands |
-| Overlay 5 | `writer.asm` | The document as scene text; `.MDL` and `.POV` files |
+| Overlay 5 | `writer.asm` | The document as scene text; `.MDL` and `.POV` files; the Open dialog (the disk's directory) |
 | Resident | `gui.asm`, `doc.asm`, `modelst.asm`, `modes.asm` | The toolkit (palette, pointer, events, menus, typing, numbers); the document; the modeller's lasting state; render and file commands |
 
 New library modules:

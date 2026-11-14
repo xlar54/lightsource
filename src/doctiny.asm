@@ -48,7 +48,7 @@ DT_COPY .macro src, dst, n
 
 dt_hdr:
         .text "R65M"
-        .byte 1, 7, 5, 3                ; version, objects, materials, lights
+        .byte 3, 7, 5, 3                ; version, objects, materials, lights
         .dint FXV((0, 0, 0)), FXV((0, 0, 1)), FX(89.34)
         .dint FXV((0.2, 0.7, 0.8))
         .byte 5

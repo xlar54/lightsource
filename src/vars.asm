@@ -69,6 +69,38 @@ td_d:           .dword 0
 td_an:          .dword 0
 td_ad:          .dword 0
 td_sg:          .byte 0
+; prisms
+pz_pts:         .fill 8 * (MAX_PRISM_PTS + 1)   ; the outline, closed: x, z per point
+pz_n:           .byte 0                 ; its edges
+pz_k:           .byte 0
+pz_ax:          .dword 0                ; edge k: from (ax, az) to (bx, bz)
+pz_az:          .dword 0
+pz_bx:          .dword 0
+pz_bz:          .dword 0
+pz_ex:          .dword 0
+pz_ez:          .dword 0
+pz_wx:          .dword 0
+pz_wz:          .dword 0
+pz_dx:          .dword 0                ; the 2-D direction
+pz_dz:          .dword 0
+pz_den:         .dword 0
+pz_ns:          .dword 0
+pz_t:           .dword 0
+pz_nx:          .byte 0                 ; crossings, sorted
+pz_xt:          .fill 4 * MAX_PRISM_PTS
+pz_xf:          .fill MAX_PRISM_PTS
+pz_ya:          .dword 0                ; the y slab
+pz_yb:          .dword 0
+pz_fa:          .byte 0
+pz_fb:          .byte 0
+pz_t0:          .dword 0
+pz_t1:          .dword 0
+pz_f0:          .byte 0
+pz_f1:          .byte 0
+pz_bt:          .dword 0
+pz_bo:          .byte 0
+pz_e:           .byte 0
+pz_ivl:         .fill IVL_SIZE          ; the prism's intervals: a list
 ; roots and booleans
 rk:             .byte 0
 rpc:            .byte 0

@@ -159,4 +159,9 @@ bx:             .fill BX_SIZE * MAX_STACK
 ca_fv:          .fill 12
 ca_half:        .dword 0
 ca_sin:         .dword 0
+pr_n:           .byte 0                 ; prisms
+fz_i:           .byte 0
+fz_a:           .fill 16
+fz_area:        .dword 0
+fz_rm:          .dword 0
 pv_end:

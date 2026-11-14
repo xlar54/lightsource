@@ -222,7 +222,7 @@ _prim:
         asl
         tax
         jmp (_p,x)
-_p:     .word wp_sphere, wp_box, wp_cyl, wp_cone, wp_plane
+_p:     .word wp_sphere, wp_box, wp_cyl, wp_cone, wp_plane, wp_prism
 wp_done:
         jsr w_mods
         #WS ws_close_nl
@@ -309,6 +309,72 @@ wp_cone:
 wp_plane:
         #WS ws_plane
         jmp wp_done
+wp_prism:
+        #WS ws_prism                    ; prism { -h/2, h/2, n + 1, <x, z>, ... <x0, z0>
+        lda #$ff                        ; (closed: the first point again, as POV-Ray
+        sta wr_sign                     ;  wants)
+        ldy #O_P
+        jsr w_half
+        #WS ws_comma
+        lda #0
+        sta wr_sign
+        ldy #O_P
+        jsr w_half
+        #WS ws_comma
+        ldy #O_PN
+        lda (wo),y
+        sta wr_k
+        inc a
+        jsr w_int
+        ldy #O_PFIRST                   ; its corners, from the pool
+        lda (wo),y
+        ldx wr_k
+        jsr pool_get
+        lda #<pt_buf
+        sta wr_p
+        lda #>pt_buf
+        sta wr_p+1
+        lda #0
+        sta wr_m
+-       #WS ws_comma
+        jsr _pt
+        inc wr_m
+        lda wr_m
+        cmp wr_k
+        bne -
+        lda #0
+        sta wr_m
+        #WS ws_comma
+        jsr _pt
+        jmp wp_done
+_pt:    ; <x, z> of corner wr_m
+        lda #'<'
+        jsr w_chr
+        lda wr_m
+        asl
+        asl
+        asl
+        clc
+        adc wr_p
+        sta wr_v
+        lda wr_p+1
+        adc #0
+        sta wr_v+1
+        lda wr_v
+        ldx wr_v+1
+        jsr w_num
+        #WS ws_comma
+        clc
+        lda wr_v
+        adc #4
+        pha
+        lda wr_v+1
+        adc #0
+        tax
+        pla
+        jsr w_num
+        lda #'>'
+        jmp w_chr
 
 ; close open groups whose depth >= wr_d
 close_groups:
@@ -694,6 +760,7 @@ ws_cyl3:        .null ", 0>, "
 ws_cone2:       .null ", 0>, "
 ws_cone3:       .null ", <0, "
 ws_plane:       .null "plane { y, 0"
+ws_prism:       .null "prism { "
 ws_texuse:      .null " texture { "
 ws_texuse2:     .null " }"
 ws_ior:         .null " interior { ior "
@@ -833,6 +900,7 @@ _fail:
         sec
         rts
 
+; NAME.MDL: the document's bank-0 part, then the corner pool (from bank 1)
 doc_save:
         lda #<ext_mdl
         ldx #>ext_mdl
@@ -858,6 +926,29 @@ doc_save:
         lda wr_v+1
         cmp #>doc_end
         bne -
+        lda #<DOC_PTS                   ; (attic: a 28-bit pointer)
+        sta wp
+        lda #>DOC_PTS
+        sta wp+1
+        lda #(FAR_ADDR >> 16) & $ff
+        sta wp+2
+        lda #FAR_ADDR >> 24
+        sta wp+3
+        lda #<POOL_BYTES
+        sta wr_v
+        lda #>POOL_BYTES
+        sta wr_v+1
+-       ldz #0
+        lda [wp],z
+        jsr wr_put
+        inw wp
+        lda wr_v
+        bne +
+        dec wr_v+1
++       dec wr_v
+        lda wr_v
+        ora wr_v+1
+        bne -
         jmp wr_close
 _fail:
         jsr kst_status
@@ -866,7 +957,7 @@ _fail:
         rts
 
 ; NAME.MDL -> TEXT_BUF, checked, then into the document. Carry set: no (wr_err = the drive's
-; status, or $ff: not a document)
+; status, or $ff: not a document; files from before version 3 aren't read)
 doc_load:
         lda #<ext_mdl
         ldx #>ext_mdl
@@ -898,7 +989,7 @@ _byte:  cpx kst_count
 +       inx
         bra _byte
 _got:   lda wr_n+1                      ; more than a document: stop
-        cmp #>(DOC_SIZE + 256)
+        cmp #>(MDL_SIZE + 256)
         bcs _done
         lda kst_st
         and #$40
@@ -907,13 +998,14 @@ _got:   lda wr_n+1                      ; more than a document: stop
         bne _blk
 _done:
         jsr kst_close
-        lda wr_n                        ; exactly a document, starting R65M
-        cmp #<DOC_SIZE
+        lda wr_n                        ; exactly a document
+        cmp #<MDL_SIZE
         bne _bad
         lda wr_n+1
-        cmp #>DOC_SIZE
+        cmp #>MDL_SIZE
         bne _bad
-        lda #<TEXT_BUF
+_size:
+        lda #<TEXT_BUF                  ; starting R65M
         sta wp
         lda #>TEXT_BUF
         sta wp+1
@@ -942,10 +1034,30 @@ _done:
         sta dmaj_src_mb
         sta dmaj_dst_mb
         lda #<DOC_SIZE
-        sta dmaj_count
+        sta xc_n
         lda #>DOC_SIZE
-        sta dmaj_count+1
-        jsr dma_go
+        sta xc_n+1
+        jsr xcopy
+        lda #<(TEXT_BUF + DOC_SIZE)     ; version 3: the pool as it is
+        sta dmaj_src
+        lda #>(TEXT_BUF + DOC_SIZE)
+        sta dmaj_src+1
+        lda #`TEXT_BUF
+        sta dmaj_src_bank
+        lda #<DOC_PTS
+        sta dmaj_dst
+        lda #>DOC_PTS
+        sta dmaj_dst+1
+        lda #FAR_BANK
+        sta dmaj_dst_bank
+        lda #FAR_MB
+        sta dmaj_dst_mb
+        lda #<POOL_BYTES
+        sta xc_n
+        lda #>POOL_BYTES
+        sta xc_n+1
+        jsr xcopy
+_ok:
         clc
         rts
 _bad:
@@ -960,6 +1072,388 @@ _fail:
         sec
         rts
 doc_tag:        .text "R65M"
+
+;=======================================================================================
+; the Open dialog: the disk's .MDL files in the right-hand panel. open_dialog -> A = 0 a
+; file was picked (ms_name is its name), 1 type a name instead, 2 cancelled (carry set:
+; the disk couldn't be read, wr_err = its status)
+;=======================================================================================
+DLG_MAX         = 48                    ; names kept
+DLG_ROWS        = 16                    ; shown at once
+DLG_Y0          = 23                    ; the first row's y
+DLG_COL         = 61
+DLG_BY          = 179                   ; the buttons' text row
+
+open_dialog:
+        lda #<st_reading
+        ldx #>st_reading
+        jsr gui_status
+        jsr dir_read
+        bcc +
+        rts
++       lda #0
+        sta dl_sel
+        sta dl_top
+        lda #<st_dlg
+        ldx #>st_dlg
+        jsr gui_status
+        #GXY 480, 10, 639, 189          ; (put back when it closes)
+        ldx #0
+        jsr gui_save
+        jsr dlg_draw
+_loop:
+        jsr wait_frame
+        jsr gui_poll
+        lda ev_type
+        cmp #EV_KEY
+        beq _key
+        cmp #EV_DOWN
+        bne _loop
+        ; a click: the panel's title (scroll up), a row, "more" (scroll down), a button
+        lda ev_x+1
+        cmp #>480
+        bcc _loop
+        bne +
+        lda ev_x
+        cmp #<480
+        bcc _loop
++       lda ev_y
+        cmp #DLG_BY - 3
+        bcc _rows
+        lda ev_x+1                      ; the buttons: Name... (x < 560), Cancel
+        cmp #>560
+        bcc _type
+        bne _cancel
+        lda ev_x
+        cmp #<560
+        bcc _type
+        bra _cancel
+_rows:  sec
+        sbc #DLG_Y0 - 1
+        bcs _row
+        lda dl_top                      ; above the rows: a page up
+        sec
+        sbc #DLG_ROWS - 1
+        bcs +
+        lda #0
++       sta dl_top
+        jmp _redraw
+_row:   ldx #0                          ; row = (y - y0) / 9
+-       cmp #9
+        bcc +
+        sbc #9
+        inx
+        bra -
++       cpx #DLG_ROWS
+        bcc +
+        jsr dlg_more                    ; the "more" row: a page down
+        bcc _loop
+        clc
+        lda dl_top
+        adc #DLG_ROWS - 1
+        sta dl_top
+        jmp _redraw
++       txa
+        clc
+        adc dl_top
+        cmp dl_n
+        bcs _loop
+        sta dl_sel
+        bra _pick
+_key:
+        lda ev_key
+        cmp #K_ESC
+        beq _cancel
+        cmp #K_STOP
+        beq _cancel
+        cmp #K_RETURN
+        bne +
+        lda dl_n
+        beq _loop
+        bra _pick
++       cmp #K_UP
+        bne +
+        lda dl_sel
+        beq _loop
+        dec dl_sel
+        bra _moved
++       cmp #K_DOWN
+        bne _loop
+        ldx dl_sel
+        inx
+        cpx dl_n
+        bcs _loop
+        stx dl_sel
+_moved: lda dl_sel                      ; keep it in view
+        cmp dl_top
+        bcs +
+        sta dl_top
++       sec
+        sbc #DLG_ROWS - 1
+        bcc _redraw
+        beq _redraw
+        cmp dl_top
+        bcc _redraw
+        sta dl_top
+_redraw:
+        jsr dlg_draw
+        jmp _loop
+_type:  lda #1
+        bra dlg_close
+_cancel:
+        lda #2
+        bra dlg_close
+_pick:  ldx dl_sel                      ; its name
+        lda dl_lo,x
+        sta txt_ptr
+        lda dl_hi,x
+        sta txt_ptr+1
+        ldy #0
+-       lda (txt_ptr),y
+        sta ms_name,y
+        beq +
+        iny
+        bra -
++       lda #0
+; the panel as it was; A = the answer
+dlg_close:
+        pha
+        ldx #0
+        jsr gui_restore
+        pla
+        clc
+        rts
+
+; carry set if there are names below the rows shown
+dlg_more:
+        clc
+        lda dl_top
+        adc #DLG_ROWS
+        cmp dl_n
+        bcs +
+        sec
+        rts
++       clc
+        rts
+
+dlg_draw:
+        jsr d6_clip_all
+        #GXY 480, 10, 639, 189
+        lda #GC_PANEL
+        jsr gui_fill
+        #GTEXT DLG_COL, 12, GC_YELLOW, $ff, st_open
+        lda dl_top
+        beq +
+        #GTEXT 73, 12, GC_LIGHT, $ff, st_up
++       lda dl_n
+        bne +
+        #GTEXT DLG_COL, DLG_Y0, GC_LIGHT, $ff, st_nodocs
++       lda #0
+        sta dg_r
+_r:     clc
+        lda dg_r
+        adc dl_top
+        sta dl_i
+        cmp dl_n
+        bcs _rows_done
+        lda dg_r                        ; y = y0 + 9 r
+        asl
+        asl
+        asl
+        clc
+        adc dg_r
+        adc #DLG_Y0
+        sta dg_y
+        lda dl_i
+        cmp dl_sel
+        bne +
+        lda dg_y
+        sec
+        sbc #1
+        sta d6_y
+        clc
+        adc #8
+        sta d6_y1
+        lda #0
+        sta d6_y+1
+        sta d6_y1+1
+        lda #<480
+        sta d6_x
+        lda #>480
+        sta d6_x+1
+        lda #<639
+        sta d6_x1
+        lda #>639
+        sta d6_x1+1
+        lda #GC_SEL
+        jsr gui_fill
++       lda #DLG_COL
+        sta d6_tc
+        lda dg_y
+        sta d6_y
+        lda #0
+        sta d6_y+1
+        lda #GC_WHITE
+        sta d6_col
+        lda #$ff
+        sta d6_bg
+        ldx dl_i
+        lda dl_lo,x
+        pha
+        lda dl_hi,x
+        tax
+        pla
+        jsr d6_text
+        inc dg_r
+        lda dg_r
+        cmp #DLG_ROWS
+        bne _r
+_rows_done:
+        jsr dlg_more
+        bcc +
+        #GTEXT DLG_COL, DLG_Y0 + 9 * DLG_ROWS, GC_LIGHT, $ff, st_down
++       ; the buttons
+        #GXY 484, DLG_BY - 2, 555, DLG_BY + 8
+        lda #GC_FRAME
+        sta d6_col
+        jsr d6_frame
+        #GXY 564, DLG_BY - 2, 635, DLG_BY + 8
+        jsr d6_frame
+        #GTEXT DLG_COL + 1, DLG_BY, GC_WHITE, $ff, st_bname
+        #GTEXT 71 + 1, DLG_BY, GC_WHITE, $ff, st_bcancel
+        rts
+
+; dir_read: the directory ("$", read as a program) -> dl_n names of SEQ ... .MDL files,
+; without the .MDL. Carry set: no disk (wr_err = the status)
+dir_read:
+        lda #0
+        sta dl_n
+        sta dl_line
+        sta kst_sa                      ; (secondary address 0: the listing)
+        ldy #0
+        lda #<st_dollar
+        ldx #>st_dollar
+        jsr kst_name_raw
+        tya
+        jsr kst_open
+        lda #2
+        sta kst_sa
+        bcc +
+        jsr kst_status
+        sta wr_err
+        sec
+        rts
++       jsr kst_rewind
+        jsr kst_getc                    ; the load address
+        jsr kst_getc
+_line:
+        jsr kst_getc                    ; the link: 0 at the end
+        bcs _end
+        sta dl_t
+        jsr kst_getc
+        bcs _end
+        ora dl_t
+        beq _end
+        jsr kst_getc                    ; the blocks
+        jsr kst_getc
+        lda #0
+        sta dl_q                        ; 0 before the name, 1 in it, 2 after
+        sta dl_len
+_ch:
+        jsr kst_getc
+        bcs _end
+        cmp #0
+        beq _eol
+        cmp #'"'
+        bne +
+        inc dl_q
+        bra _ch
++       ldx dl_q
+        cpx #1
+        bne _ch
+        ldx dl_len
+        cpx #16
+        bcs _ch
+        cmp #$c1                        ; the DOS's a-z ($C1-$DA) as ASCII
+        bcc +
+        cmp #$db
+        bcs +
+        sec
+        sbc #$60
++       sta dl_tmp,x
+        inc dl_len
+        bra _ch
+_eol:
+        inc dl_line
+        lda dl_line
+        cmp #1
+        beq _line                       ; (the first line is the disk's name)
+        lda dl_q
+        cmp #2
+        bne _line
+        lda dl_len                      ; NAME.MDL?
+        cmp #5
+        bcc _line
+        tax
+        ldy #3
+-       dex
+        lda dl_tmp,x
+        cmp ext_mdl,y
+        bne _line
+        dey
+        bpl -
+        lda dl_n
+        cmp #DLG_MAX
+        bcs _line
+        tay                             ; keep it, without the .MDL (at most 12)
+        lda dl_lo,y
+        sta txt_ptr
+        lda dl_hi,y
+        sta txt_ptr+1
+        sec
+        lda dl_len
+        sbc #4
+        sta dl_len
+        ldy #0
+-       cpy dl_len
+        beq +
+        lda dl_tmp,y
+        sta (txt_ptr),y
+        iny
+        cpy #12
+        bne -
++       lda #0
+        sta (txt_ptr),y
+        inc dl_n
+        jmp _line
+_end:
+        jsr kst_close
+        clc
+        rts
+
+st_dollar:      .null "$"
+st_reading:     .null "Reading the disk..."
+st_dlg:         .null "Open: click a document, or the cursor keys and RETURN. ESC cancels"
+st_open:        .null "Open"
+st_up:          .null "^ more"
+st_down:        .null "v more"
+st_nodocs:      .null "(no documents)"
+st_bname:       .null "Name..."
+st_bcancel:     .null "Cancel"
+dl_lo:          .byte <(dl_names + range(DLG_MAX) * 13)
+dl_hi:          .byte >(dl_names + range(DLG_MAX) * 13)
+dl_names:       .fill DLG_MAX * 13
+dl_tmp:         .fill 16
+dl_n:           .byte 0
+dl_sel:         .byte 0
+dl_top:         .byte 0
+dg_r:           .byte 0
+dl_i:           .byte 0
+dg_y:           .byte 0
+dl_t:           .byte 0
+dl_q:           .byte 0
+dl_len:         .byte 0
+dl_line:        .byte 0
 
 wr_err:         .byte 0
 wr_i:           .byte 0

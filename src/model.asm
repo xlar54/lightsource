@@ -11,7 +11,7 @@
 ;=======================================================================================
 
 LIST_X          = 480
-LIST_COL        = 60
+LIST_COL        = 61                    ; (the visible boxes are left of it)
 LIST_Y0         = 12
 LIST_ROWS       = 11
 PROP_Y0         = 120
@@ -181,11 +181,8 @@ _down:
         lda ev_y
         cmp #10
         bcs +
-        jsr gui_menu                    ; the menu bar
-        pha
-        jsr redraw_all
-        pla
-        jmp model_cmd
+        jsr gui_menu                    ; the menu bar (it puts back what it covered;
+        jmp model_cmd                   ; commands redraw what they change)
 +       cmp #190
         bcc +
         rts
@@ -215,10 +212,20 @@ model_key:
         bne +
         lda #CMD_ZOOMOUT
         jmp model_cmd
-+       cmp #K_DEL
++       cmp #K_DEL                      ; (a prism's corner, if one is picked)
         bne +
-        lda #CMD_DELETE
+        jsr pt_valid
+        bcc _del
+        jmp pt_delete
+_del:   lda #CMD_DELETE
         jmp model_cmd
++       cmp #'i'
+        beq _ins
+        cmp #K_INST
+        bne +
+_ins:   jsr pt_valid
+        bcc _r
+        jmp pt_insert
 +       cmp #'r'
         bne +
         lda #CMD_RENDER
@@ -228,10 +235,10 @@ model_key:
         lda #CMD_PREVIEW
         jmp model_cmd
 +       cmp #'s'
-        bne +
+        bne _r
         lda #CMD_SAVE
         jmp model_cmd
-+       rts
+_r:     rts
 
 ;---------------------------------------------------------------------------------------
 ; the views: picking and dragging
@@ -299,6 +306,13 @@ view_click:
         jmp redraw_all
 _pick:
         jsr world_all                   ; every object's place
+        jsr pt_pick                     ; a corner of the selected prism?
+        bcc +
+        jmp redraw_all
++       lda #0                          ; (a click anywhere else lets go of the corner)
+        sta ms_dpt
+        lda #$ff
+        sta ms_ptobj
         ; the nearest thing within 10 pixels of the click: objects' origins, lights, camera
         lda #$ff
         sta pk_best
@@ -310,9 +324,12 @@ _obj:
         lda pk_i
         cmp doc_nobj
         beq _lights
+        tax                             ; (not the hidden ones)
+        lda hid_flag,x
+        bne +
         jsr obj_origin                  ; pk_w = its origin, in the world
         jsr pk_try
-        inc pk_i
++       inc pk_i
         bra _obj
 _lights:
         lda #0
@@ -446,7 +463,10 @@ model_drag:
         #FDIV dr_a, tq, dr_a
         #FMUL tq, q_aspect, tv3m
         #FDIV dr_b, tv3m, dr_b
-        ldx ms_drag
+        lda ms_dpt
+        beq +
+        jmp pt_drag
++       ldx ms_drag
         lda vw_ha,x
         asl
         asl
@@ -538,6 +558,322 @@ vw_zoom:
         cpy #4
         bne -
         rts
+
+;---------------------------------------------------------------------------------------
+; prisms: corners. The selected prism's corners have handles in the ortho views (at its
+; top); one can be picked (ms_pt, while ms_ptobj = ms_sel), dragged, and have a corner
+; added after it or be removed.
+;---------------------------------------------------------------------------------------
+; carry set if a corner of the selection is picked (txt_ptr = the object)
+pt_valid:
+        lda ms_sel
+        cmp #DOC_MAXOBJ
+        bcs _no
+        cmp ms_ptobj
+        bne _no
+        tax
+        jsr po_obj
+        bne _no
+        ldy #O_PN
+        lda ms_pt
+        cmp (txt_ptr),y
+        bcs _no
+        sec
+        rts
+_no:    clc
+        rts
+
+; pt_cur = the picked corner (pt_valid first: txt_ptr), from the pool; pt_store puts it
+; back. A = its place in the pool, for both.
+pt_load:
+        jsr pt_place
+        jmp pool_get_b
+pt_store:
+        jsr pt_place
+        jmp pool_put_b
+pt_place:
+        lda #<pt_cur
+        sta px_b0
+        lda #>pt_cur
+        sta px_b0+1
+        ldy #O_PFIRST
+        lda (txt_ptr),y
+        clc
+        adc ms_pt
+        ldx #1
+        rts
+
+; the prism at op (object X): wcur = its world transform, ci_hh = half its height, wp_n =
+; its corners, pt_buf = them
+pp_setup:
+        txa
+        jsr wm_ptr
+        ldy #47
+-       lda (pa),y
+        sta wcur,y
+        dey
+        bpl -
+        ldy #O_P
+        ldx #0
+-       lda (op),y
+        sta ci_hh,x
+        iny
+        inx
+        cpx #4
+        bne -
+        ldq ci_hh
+        #ASRQ_Q
+        stq ci_hh
+        ldy #O_PN
+        lda (op),y
+        sta wp_n
+        tax
+        ldy #O_PFIRST
+        lda (op),y
+        jmp pool_get
+
+; corner A of pt_buf -> sg_a / sg_b (x and z; y untouched)
+pt_get_a:
+        asl
+        asl
+        asl
+        tax
+        ldy #0
+-       lda pt_buf,x
+        sta sg_a,y
+        lda pt_buf+4,x
+        sta sg_a+8,y
+        inx
+        iny
+        cpy #4
+        bne -
+        rts
+pt_get_b:
+        asl
+        asl
+        asl
+        tax
+        ldy #0
+-       lda pt_buf,x
+        sta sg_b,y
+        lda pt_buf+4,x
+        sta sg_b+8,y
+        inx
+        iny
+        cpy #4
+        bne -
+        rts
+; pk_w = corner A at the top (y = ci_hh), in the world
+pt_world:
+        jsr pt_get_a
+        #MOVQ ci_hh, sg_a+4
+        #VMOV sg_a, xf_in
+        jsr xf_point
+        #VMOV xf_out, pk_w
+        rts
+
+; a click near a corner of the selected prism (not in the camera view): pick it and drag
+; it. Carry set if so.
+pt_pick:
+        lda ms_sel
+        cmp #DOC_MAXOBJ
+        bcs _no
+        lda ms_dview
+        cmp #3
+        beq _no
+        ldx ms_sel
+        lda hid_flag,x                  ; (hidden: no handles to pick)
+        bne _no
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_TYPE
+        lda (op),y
+        cmp #OT_PRISM
+        bne _no
+        jsr pp_setup
+        lda #$ff
+        sta pk_best
+        lda #6                          ; (within 5 pixels)
+        sta pk_bd
+        lda #0
+        sta wp_k
+-       lda wp_k
+        jsr pt_world
+        lda wp_k
+        sta pk_i
+        jsr pk_try
+        inc wp_k
+        lda wp_k
+        cmp wp_n
+        bne -
+        lda pk_best
+        cmp #$ff
+        beq _no
+        sta ms_pt
+        lda ms_sel
+        sta ms_ptobj
+        lda #1
+        sta ms_dpt
+        lda ms_dview
+        sta ms_drag
+        lda ev_x
+        sta ms_dx
+        lda ev_x+1
+        sta ms_dx+1
+        lda ev_y
+        sta ms_dy
+        lda #<st_corner
+        ldx #>st_corner
+        sta ms_msg
+        stx ms_msg+1
+        sec
+        rts
+_no:    clc
+        rts
+st_corner:      .null "A corner: drag it. I adds one after it, DEL removes it"
+
+; drag the picked corner by (dr_a across, dr_b up) in view ms_drag: the move in the world,
+; taken into the prism's own x and z (its transform is a rotation times a scale, so
+; along column j of A the move is (col_j . v) / (col_j . col_j))
+pt_drag:
+        #VMOV q_z3, dl_v
+        ldx ms_drag
+        lda vw_ha,x
+        asl
+        asl
+        tax
+        ldy #0
+-       lda dr_a,y
+        sta dl_v,x
+        inx
+        iny
+        cpy #4
+        bne -
+        ldx ms_drag
+        lda vw_va,x
+        asl
+        asl
+        tax
+        ldy #0
+-       lda dr_b,y
+        sta dl_v,x
+        inx
+        iny
+        cpy #4
+        bne -
+        lda ms_sel
+        jsr wm_ptr
+        ldy #47
+-       lda (pa),y
+        sta wcur,y
+        dey
+        bpl -
+        .for si in [(0, lr_x), (2, lr_y)]
+        #MOVQ wcur+si[0]*4, mm_c
+        #MOVQ wcur+12+si[0]*4, mm_c+4
+        #MOVQ wcur+24+si[0]*4, mm_c+8
+        #DOT mm_c, dl_v, tq
+        #DOT mm_c, mm_c, tv3m
+        #BNEZ tv3m, +
+        rts
++       #FDIV tq, tv3m, si[1]
+        .next
+        jsr pt_valid
+        bcc _r
+        jsr pt_load
+        #ADDQ pt_cur, lr_x, pt_cur
+        #ADDQ pt_cur+4, lr_y, pt_cur+4
+        jsr pt_store
+        lda ev_x
+        sta ms_dx
+        lda ev_x+1
+        sta ms_dx+1
+        lda ev_y
+        sta ms_dy
+        jsr draw_views
+        jmp draw_props
+_r:     rts
+
+; I: a corner after the picked one, half way along the edge to the next
+pt_insert:
+        ldy #O_PN                       ; (txt_ptr = the object, from pt_valid)
+        lda (txt_ptr),y
+        sta wp_n
+        cmp #DOC_MAXPTS
+        bcc +
+        lda #<st_pmax
+        ldx #>st_pmax
+        jmp say
++       tax                             ; all its corners
+        ldy #O_PFIRST
+        lda (txt_ptr),y
+        sta wp_k
+        jsr pool_get
+        lda ms_pt                       ; this one and the next (mod n): their middle
+        jsr pt_get_a
+        ldx ms_pt
+        inx
+        cpx wp_n
+        bne +
+        ldx #0
++       txa
+        jsr pt_get_b
+        #ADDQ sg_a, sg_b, tq
+        #ASRQ_Q
+        stq pt_cur
+        #ADDQ sg_a+8, sg_b+8, tq
+        #ASRQ_Q
+        stq pt_cur+4
+        clc                             ; room at first + ms_pt + 1
+        lda wp_k
+        adc ms_pt
+        inc a
+        ldx #1
+        jsr pool_open
+        bcc +
+        lda #<st_pfull
+        ldx #>st_pfull
+        jmp say
++       jsr pt_valid                    ; (txt_ptr again)
+        ldy #O_PN
+        lda wp_n
+        inc a
+        sta (txt_ptr),y
+        inc ms_pt
+        jsr pt_store
+        jmp redraw_all
+st_pmax:        .null "A prism has 16 corners at most"
+st_pmin:        .null "A prism needs 3 corners at least"
+st_pfull:       .null "No room for more corners (255 in all)"
+
+; DEL: the picked corner goes
+pt_delete:
+        ldy #O_PN
+        lda (txt_ptr),y
+        sta wp_n
+        cmp #4
+        bcs +
+        lda #<st_pmin
+        ldx #>st_pmin
+        jmp say
++       ldy #O_PFIRST
+        lda (txt_ptr),y
+        clc
+        adc ms_pt
+        ldx #1
+        jsr pool_close
+        ldx ms_sel
+        jsr po_obj
+        ldy #O_PN
+        lda wp_n
+        dec a
+        sta (txt_ptr),y
+        cmp ms_pt                       ; it was the last: the one before it now
+        bne +
+        dec ms_pt
++       jmp redraw_all
 
         .include "model2.asm"
         .include "model3.asm"

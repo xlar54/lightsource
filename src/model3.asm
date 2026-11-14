@@ -10,14 +10,15 @@ CMD_SAVEAS      = 4
 CMD_EXPORT      = 5
 CMD_RENDER      = 6
 CMD_PREVIEW     = 7
+CMD_EXIT        = 8
 CMD_DELETE      = 10
 CMD_DUP         = 11
 CMD_UP          = 12
 CMD_DOWN        = 13
 CMD_INDENT      = 14
 CMD_OUTDENT     = 15
-CMD_ADD         = 20                    ; + OT_* (20-28); a light is 29
-CMD_ADDLIGHT    = 29
+CMD_ADDLIGHT    = 19
+CMD_ADD         = 20                    ; + OT_* (20-29)
 CMD_MATNEXT     = 30
 CMD_MATPREV     = 31
 CMD_MATNEW      = 32
@@ -43,6 +44,8 @@ gui_menus:
         .null "Preview   P"
         .byte CMD_RENDER
         .null "Render    R"
+        .byte CMD_EXIT
+        .null "Exit"
         .byte 0
         .byte 7
         .null "Edit"
@@ -71,6 +74,8 @@ gui_menus:
         .null "Cone"
         .byte CMD_ADD + OT_PLANE
         .null "Plane"
+        .byte CMD_ADD + OT_PRISM
+        .null "Prism"
         .byte CMD_ADDLIGHT
         .null "Light"
         .byte CMD_ADD + OT_UNION
@@ -104,16 +109,17 @@ gui_menus:
         .byte 0
         .byte 0
 
-type_names:     .word tn0, tn1, tn2, tn3, tn4, tn5, tn6, tn7, tn8
+type_names:     .word tn0, tn1, tn2, tn3, tn4, tn5, tn6, tn7, tn8, tn9
 tn0:    .null "Sphere"
 tn1:    .null "Box"
 tn2:    .null "Cylinder"
 tn3:    .null "Cone"
 tn4:    .null "Plane"
-tn5:    .null "Union"
-tn6:    .null "Merge"
-tn7:    .null "Intersection"
-tn8:    .null "Difference"
+tn5:    .null "Prism"
+tn6:    .null "Union"
+tn7:    .null "Merge"
+tn8:    .null "Intersection"
+tn9:    .null "Difference"
 
 ;=======================================================================================
 ; the object list: objects (indented by depth), lights, the camera
@@ -220,12 +226,18 @@ _row:
         lda dl_e
         cmp doc_nobj
         bcs _nobj
-        tax                             ; an object: indent, name, (its type)
+        tax                             ; an object: its box, indent, name
         lda obj_lo,x
         sta op
         lda obj_hi,x
         sta op+1
-        ldy #O_DEPTH
+        jsr vis_box
+        ldx dl_e                        ; (grey if hidden, by itself or a group)
+        lda hid_flag,x
+        beq +
+        lda #GC_LIGHT
+        sta d6_col
++       ldy #O_DEPTH
         lda (op),y
         clc
         adc d6_tc
@@ -270,6 +282,51 @@ _next:
         jmp _row
 _done:
         rts
+; the visible box of the object at op, at the left of row dl_y: filled = shown in the
+; views. (d6_y, the colours and d6_tc are set again for the text after it.)
+vis_box:
+        lda #<LIST_X
+        sta d6_x
+        lda #>LIST_X
+        sta d6_x+1
+        lda #<(LIST_X + 6)
+        sta d6_x1
+        lda #>(LIST_X + 6)
+        sta d6_x1+1
+        lda dl_y
+        sta d6_y
+        clc
+        adc #6
+        sta d6_y1
+        lda #0
+        sta d6_y+1
+        sta d6_y1+1
+        lda #GC_LIGHT
+        sta d6_col
+        jsr d6_frame
+        ldy #O_FLAGS
+        lda (op),y
+        and #OF_HIDE
+        bne +
+        lda #<(LIST_X + 2)
+        sta d6_x
+        lda #<(LIST_X + 4)
+        sta d6_x1
+        inc d6_y
+        inc d6_y
+        dec d6_y1
+        dec d6_y1
+        lda #GC_GREEN
+        jsr gui_fill
++       lda dl_y
+        sta d6_y
+        lda #0
+        sta d6_y+1
+        lda #GC_WHITE
+        sta d6_col
+        lda #$ff
+        sta d6_bg
+        rts
 st_light:       .null "Light "
 st_camera:      .null "Camera"
 
@@ -294,7 +351,26 @@ list_click:
         cmp dl_e
         bcc _r
         beq _r
-        lda dl_e                        ; the entry -> the selection
+        lda dl_e                        ; an object's box: shown / hidden
+        cmp doc_nobj
+        bcs _ent
+        lda ev_x+1
+        cmp #>(LIST_X + 9)
+        bne _ent
+        lda ev_x
+        cmp #<(LIST_X + 9)
+        bcs _ent
+        ldx dl_e
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_FLAGS
+        lda (op),y
+        eor #OF_HIDE
+        sta (op),y
+        jmp redraw_all
+_ent:   lda dl_e                        ; the entry -> the selection
         cmp doc_nobj
         bcc _set
         sec
@@ -305,6 +381,8 @@ list_click:
         bra _set
 +       lda #$80
 _set:   sta ms_sel
+        lda #$ff
+        sta ms_ptobj
         lda #<st_hello
         ldx #>st_hello
         sta ms_msg
@@ -397,6 +475,19 @@ props_build:
         #PF 4, PCOL_B, PK_VAL, pl_r1, O_P
         #PF 5, PCOL_A, PK_VAL, pl_r2, O_P+4
         #PF 5, PCOL_B, PK_VAL, pl_h, O_P+8
+        rts
++       cmp #OT_PRISM
+        bne +
+        #PF 4, PCOL_B, PK_VAL, pl_h, O_P
+        jsr pt_valid                    ; the corner picked: its x and z (a copy in
+        bcc +                           ; pt_cur: prop_click puts it back)
+        jsr pt_load
+        lda #<pt_cur
+        sta lp
+        lda #>pt_cur
+        sta lp+1
+        #PF 5, PCOL_A, PK_VAL, pl_cx, 0
+        #PF 5, PCOL_B, PK_VAL, pl_cz, 4
 +       rts
 pb_light:
         and #$3f
@@ -470,6 +561,8 @@ pl_h:           .null "H"
 pl_sx:          .null "SX"
 pl_sy:          .null "SY"
 pl_sz:          .null "SZ"
+pl_cx:          .null "CX"
+pl_cz:          .null "CZ"
 pl_mat:         .null "Mat "
 pl_cr:          .null "R"
 pl_cg:          .null "G"
@@ -715,7 +808,7 @@ _edit:
 +       lda #<st_pname
         ldx #>st_pname
         jsr gui_edit
-        bcs _done
+        bcs _esc                        ; (ESC: the status line is back as it was)
         ldx pc_f
         lda pf_adr_lo,x
         sta lp
@@ -780,7 +873,7 @@ _num:
 +       lda #<pc_prompt
         ldx #>pc_prompt
         jsr gui_edit
-        bcs _done
+        bcs _esc                        ; (ESC: the status line is back as it was)
         jsr gui_num
         bcc +
         lda #<st_notnum
@@ -809,7 +902,11 @@ _num:
         iny
         cpy #4
         bne -
-        jmp redraw_all
+        jsr pt_valid                    ; (a corner's x or z went into pt_cur: back to
+        bcc +                           ;  the pool; the same value if it was another)
+        jsr pt_store
++       jmp redraw_all
+_esc:   rts
 st_pname:       .null "Name: "
 st_eq:          .null " = "
 st_notnum:      .null "That isn't a number"
@@ -884,12 +981,20 @@ model_cmd:
         bne +
         jsr views_reset
         jmp redraw_all
++       cmp #CMD_EXIT
+        bne +
+        jmp cmd_exit
 +       ; files and renders: resident code (other overlays)
         lda mc_cmd
         jsr do_command                  ; -> A/X = a message
         sta ms_msg
         stx ms_msg+1
-        jsr gui_on
+        cmp #<dc_cancel                 ; cancelled: nothing changed but the status line
+        bne +
+        cpx #>dc_cancel
+        bne +
+        jmp gui_status
++       jsr gui_on
         jmp redraw_all
 _msg_redraw:
         lda #<st_hello
@@ -903,6 +1008,28 @@ say:
         sta ms_msg
         stx ms_msg+1
         jmp redraw_all
+
+; Exit: back to BASIC, once Y is typed (the document isn't saved: nothing keeps track
+; of changes)
+cmd_exit:
+        lda #0
+        sta ge_buf
+        lda #<st_exitq
+        ldx #>st_exitq
+        jsr gui_edit
+        bcs _no
+        lda ge_buf
+        and #$df
+        cmp #'Y'
+        bne _no
+        jsr gui_off
+        jmp kst_to_basic
+_no:    lda #<dc_cancel
+        ldx #>dc_cancel
+        sta ms_msg
+        stx ms_msg+1
+        jmp gui_status
+st_exitq:       .null "Leave for BASIC? Anything not saved is lost. Y to leave: "
 
 cmd_zoom:
         sta cz_f
@@ -1016,7 +1143,15 @@ cmd_add:
         lda mc_cmd
         sbc #CMD_ADD
         sta ca_t
-        lda ms_sel
+        cmp #OT_PRISM                   ; a prism needs room in the corner pool
+        bne +
+        jsr pool_count
+        cmp #DOC_POOL - NEW_CORNERS + 1
+        bcc +
+        lda #<st_pfull
+        ldx #>st_pfull
+        jmp say
++       lda ms_sel
         cmp #DOC_MAXOBJ
         bcs _end                        ; nothing (or no object) selected: at the end, depth 0
         sta ca_s
@@ -1137,7 +1272,24 @@ _fill:
         ldy #O_P+10
         lda add_sizes+2,x
         sta (op),y
-        lda ob_at
+        lda ca_t
+        cmp #OT_PRISM
+        bne +
+        jsr pool_count                  ; a prism: its outline at the pool's end
+        ldy #O_PFIRST
+        sta (op),y
+        iny
+        lda #NEW_CORNERS
+        sta (op),y
+        lda #<new_outline
+        sta px_b0
+        lda #>new_outline
+        sta px_b0+1
+        dey
+        lda (op),y
+        ldx #NEW_CORNERS
+        jsr pool_put_b
++       lda ob_at
         sta ms_sel
         lda #<st_added
         ldx #>st_added
@@ -1148,7 +1300,11 @@ _full:
         jmp say
 ; p0, p1, p2 (whole numbers) for each type
 add_sizes:      .byte 1, 0, 0, 0,  2, 2, 2, 0,  1, 2, 0, 0,  1, 0, 2, 0,  0, 0, 0, 0
+                .byte 1, 0, 0, 0
                 .byte 0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0
+; a new prism's outline: a house, 5 corners (x, z)
+new_outline:    .dint FX(-1), FX(-1), FX(1), FX(-1), FX(1), FX(0.5), FX(0), FX(1.4), FX(-1), FX(0.5)
+NEW_CORNERS     = 5
 st_added:       .null "Added: give it a place in the views or the panel"
 st_full:        .null "No room for more (32 objects)"
 
@@ -1185,10 +1341,26 @@ cmd_delete:
         bcs _light
         sta ob_at
         jsr sub_end
+        sta ca_e
         sec
         sbc ob_at
         sta oo_n
-        jsr obj_close
+        lda ob_at                       ; its prisms' corners leave the pool
+        sta ca_k
+-       ldx ca_k
+        cpx ca_e
+        beq +
+        jsr po_obj
+        bne _np
+        ldy #O_PN
+        lda (txt_ptr),y
+        tax
+        ldy #O_PFIRST
+        lda (txt_ptr),y
+        jsr pool_close
+_np:    inc ca_k
+        bra -
++       jsr obj_close
         lda #$ff
         sta ms_sel
         lda #<st_deleted
@@ -1242,6 +1414,26 @@ cmd_dup:
         sec
         sbc ca_s
         sta ca_n
+        lda #0                          ; room in the pool for its prisms' corners
+        sta ca_t
+        ldx ca_s
+-       jsr _isprism
+        bne +
+        clc
+        ldy #O_PN
+        lda (op),y
+        adc ca_t
+        sta ca_t
+        bcs _pfull
++       inx
+        cpx ob_at
+        bne -
+        jsr pool_count
+        sta ca_e                        ; (the copies' corners go from here)
+        clc
+        adc ca_t
+        bcs _pfull                      ; (DOC_POOL is 255: a carry is too many)
+        lda ca_n
         jsr obj_open                    ; (A = how many)
         bcs _full
         lda #0
@@ -1259,6 +1451,38 @@ cmd_dup:
         lda ca_k
         cmp ca_n
         bne -
+        lda #0                          ; the copied prisms: their corners copied to the
+        sta ca_k                        ; pool's end
+_corners:
+        clc
+        lda ob_at
+        adc ca_k
+        tax
+        jsr _isprism
+        bne _nc
+        ldy #O_PN
+        lda (op),y
+        tax
+        ldy #O_PFIRST
+        lda (op),y
+        jsr pool_get
+        ldy #O_PFIRST
+        lda ca_e
+        sta (op),y
+        ldy #O_PN
+        lda (op),y
+        tax
+        clc
+        adc ca_e
+        pha
+        lda ca_e
+        jsr pool_put
+        pla
+        sta ca_e
+_nc:    inc ca_k
+        lda ca_k
+        cmp ca_n
+        bne _corners
         lda ob_at
         sta ms_sel
         lda #<st_dup
@@ -1267,7 +1491,19 @@ cmd_dup:
 _full:  lda #<st_full
         ldx #>st_full
         jmp say
+_pfull: lda #<st_pfull
+        ldx #>st_pfull
+        jmp say
 _r:     rts
+_isprism: ; op = object X; Z set if it's a prism
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_TYPE
+        lda (op),y
+        cmp #OT_PRISM
+        rts
 st_dup:         .null "Duplicated"
 
 ; Move up / down: an object with no children swaps with its neighbour of the same depth
@@ -1589,13 +1825,22 @@ wa_i:           .byte 0
 wa_d:           .byte 0
 wa_seld:        .byte 0
 sel_flag:       .fill DOC_MAXOBJ
+hid_flag:       .fill DOC_MAXOBJ        ; 1: not in the views (its box, or a group's)
+wa_hd:          .byte 0
 lm:             .fill 48
 mm_p:           .fill 48
 mm_c:           .fill 12
 mm_r:           .fill 48
 wcur:           .fill 48
-wstk:           .fill 48 * 10
+        .virtual $0800                  ; (the parser's work area: free while the modeller
+wstk:           .fill 48 * 10           ;  runs. world_all fills these on every redraw)
 wm:             .fill 48 * DOC_MAXOBJ
+        .cerror * > $1600, "the modeller's buffers run into kstream's"
+        .endv
+wp_k:           .byte 0
+pt_cur:         .fill 8                 ; the picked corner (x, z), from the pool
+wp_n:           .byte 0
+dl_v:           .fill 12
 lr_ax:          .byte 0
 lr_a:           .byte 0
 lr_b:           .byte 0

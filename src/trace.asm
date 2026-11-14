@@ -11,7 +11,9 @@
 ;
 ; Each primitive gives one interval along the ray (or none): pv_n = 0/1, pv_t0/pv_s0 (the
 ; way in: t and which face) and pv_t1/pv_s1 (the way out). A root that is one primitive
-; uses that directly; a boolean root runs its postfix program over interval lists.
+; uses that directly; a boolean root runs its postfix program over interval lists. A prism
+; may be concave: it gives a list (pz_ivl), and a root that is one prism takes the list
+; path.
 ;
 ; cast recurses for reflections and refractions (up to the scene's depth), saving its frame
 ; (fr_*) on a small stack of its own. Its result is in rc (r, g, b, 16.16).
@@ -297,7 +299,7 @@ prim_iv:
         asl
         tax
         jmp (piv_tab,x)
-piv_tab:        .word iv_sphere, iv_box, iv_cyl, iv_cone, iv_plane
+piv_tab:        .word iv_sphere, iv_box, iv_cyl, iv_cone, iv_plane, iv_prism
 
 iv_sphere:
         #VSUB cp_c, ray_o, sL           ; L = c - o
@@ -612,16 +614,355 @@ _none:
         rts
 
 ;---------------------------------------------------------------------------------------
+; iv_prism: an outline in the local x-z plane (pz_pts, by pz_points), |y| <= h. It may be
+; concave, so the ray can go in and out more than once: the intervals go to pz_ivl (a
+; list), not pv. The ray's line crosses the edges at sorted t; each pair of crossings is a
+; stretch inside the outline, narrowed to the y slab. A ray along the axis is inside the
+; outline all along the slab, or not at all.
+;---------------------------------------------------------------------------------------
+iv_prism:
+        lda #0
+        sta pz_ivl
+        jsr to_local
+        jsr pz_points
+        #MOVQ cp_s, slab_h              ; the y slab: ta, tb (faces sa, sb), sorted
+        lda #1
+        sta slab_fa
+        ldx #1
+        jsr slab
+        #MOVQ ta, pz_ya
+        #MOVQ tb, pz_yb
+        lda sa
+        sta pz_fa
+        lda sb
+        sta pz_fb
+        #BNEZ dl, _slant
+        #BNEZ dl+8, _slant
+        #MOVQ q_one, pz_dx              ; along the axis: crossings ahead along x
+        #MOVQ q_zero, pz_dz
+        jsr pz_cross
+        lda #0
+        sta tmp0
+        ldx #0
+        ldy #0
+_count:
+        cpy pz_nx
+        beq _counted
+        lda pz_xt+3,x                   ; t > 0: one more
+        bmi +
+        ora pz_xt+2,x
+        ora pz_xt+1,x
+        ora pz_xt,x
+        beq +
+        inc tmp0
++       inx
+        inx
+        inx
+        inx
+        iny
+        bra _count
+_counted:
+        lda tmp0
+        and #1
+        beq _own
+        #MOVQ pz_ya, pz_t0
+        #MOVQ pz_yb, pz_t1
+        lda pz_fa
+        sta pz_f0
+        lda pz_fb
+        sta pz_f1
+        jsr pz_add
+        bra _own
+_slant:
+        #MOVQ dl, pz_dx
+        #MOVQ dl+8, pz_dz
+        jsr pz_cross
+        lda #0
+        sta pz_e
+_pair:
+        lda pz_e                        ; crossings e and e + 1
+        inc a
+        cmp pz_nx
+        bcs _own
+        lda pz_e
+        asl
+        asl
+        tax
+        ldy #0
+-       lda pz_xt,x
+        sta pz_t0,y
+        lda pz_xt+4,x
+        sta pz_t1,y
+        inx
+        iny
+        cpy #4
+        bne -
+        ldx pz_e
+        lda pz_xf,x
+        sta pz_f0
+        lda pz_xf+1,x
+        sta pz_f1
+        #BLEQ pz_ya, pz_t0, +           ; the slab starts later
+        #MOVQ pz_ya, pz_t0
+        lda pz_fa
+        sta pz_f0
++       #BLEQ pz_t1, pz_yb, +           ; the slab ends sooner
+        #MOVQ pz_yb, pz_t1
+        lda pz_fb
+        sta pz_f1
++       #BGTQ pz_t0, pz_t1, +
+        jsr pz_add
++       inc pz_e
+        inc pz_e
+        bra _pair
+_own:
+        lda cp_own                      ; the ray's own prism: the boundary nearest
+        beq _done                       ; zero (the first of equals) becomes zero
+        lda pz_ivl
+        beq _done
+        asl
+        sta pz_n                        ; (events; the edges aren't needed now)
+        lda #0
+        sta pz_e
+        lda #1
+        sta pz_bo
+_ev:
+        ldx pz_e
+        ldy ev_off,x
+        ldx #0
+-       lda pz_ivl,y
+        sta pz_t,x
+        iny
+        inx
+        cpx #4
+        bne -
+        #ABSQ pz_t, tt
+        lda pz_e
+        beq _best
+        #BLEQ pz_bt, tt, _nb
+_best:
+        #MOVQ tt, pz_bt
+        ldx pz_e
+        lda ev_off,x
+        sta pz_bo
+_nb:
+        inc pz_e
+        lda pz_e
+        cmp pz_n
+        bne _ev
+        ldy pz_bo
+        lda #0
+        sta pz_ivl,y
+        sta pz_ivl+1,y
+        sta pz_ivl+2,y
+        sta pz_ivl+3,y
+_done:
+        rts
+
+; append [pz_t0 (face pz_f0), pz_t1 (pz_f1)] to pz_ivl, unless it is full
+pz_add:
+        ldx pz_ivl
+        cpx #MAXIV
+        bcs _full
+        ldy ev_off2,x
+        ldx #0
+-       lda pz_t0,x
+        sta pz_ivl,y
+        lda pz_t1,x
+        sta pz_ivl+6,y
+        iny
+        inx
+        cpx #4
+        bne -
+        lda cpi
+        sta pz_ivl,y
+        sta pz_ivl+6,y
+        lda pz_f0
+        sta pz_ivl+1,y
+        lda pz_f1
+        sta pz_ivl+7,y
+        inc pz_ivl
+_full:
+        rts
+
+; pz_points: the loaded prism's outline (n + 1 points, closed) -> pz_pts, pz_n
+pz_points:
+        lda cp_s+5
+        sta pz_n
+        inc a
+        asl
+        asl
+        asl
+        sta pz_job                      ; (n + 1) * 8 bytes
+        lda cp_s+4                      ; from SC_PTS + first * 8 (attic)
+        sta pz_job_src
+        lda #0
+        sta pz_job_src+1
+        ldx #3
+-       asl pz_job_src
+        rol pz_job_src+1
+        dex
+        bne -
+        clc
+        lda pz_job_src
+        adc #<SC_PTS
+        sta pz_job_src
+        lda pz_job_src+1
+        adc #>SC_PTS
+        sta pz_job_src+1
+        lda #>pz_dma
+        sta DMA_ADDRMSB
+        lda #<pz_dma
+        sta DMA_ADDRLSB_ETRIG
+        rts
+pz_dma:
+        .byte DMAOPT_F018B, DMAOPT_SRC_MB, FAR_MB, DMAOPT_DST_MB, 0, DMAOPT_END
+        .byte DMACMD_COPY
+pz_job:
+        .word 0
+pz_job_src:
+        .word 0
+        .byte FAR_BANK
+        .word pz_pts
+        .byte 0
+        .byte 0
+        .word 0
+
+; pz_edge: X = edge k * 8 -> pz_ax, pz_az, pz_bx, pz_bz; pz_ex, pz_ez = b - a
+pz_edge:
+        ldy #0
+-       lda pz_pts,x
+        sta pz_ax,y
+        inx
+        iny
+        cpy #16
+        bne -
+        #SUBQ pz_bx, pz_ax, pz_ex
+        #SUBQ pz_bz, pz_az, pz_ez
+        rts
+
+; pz_cross: where the line (ol.x, ol.z) + t (pz_dx, pz_dz) crosses the edges -> pz_nx
+; crossings, pz_xt (t) and pz_xf (face 3 + k), sorted by t (equals in edge order). Edge k
+; holds its start point but not its end.
+pz_cross:
+        lda #0
+        sta pz_nx
+        sta pz_k
+_edge:
+        lda pz_k
+        cmp pz_n
+        bne +
+        rts
++       asl
+        asl
+        asl
+        tax
+        jsr pz_edge
+        #FMUL pz_dx, pz_ez, tq          ; den = dx ez - dz ex
+        #FMUL pz_dz, pz_ex, tv
+        #SUBQ tq, tv, pz_den
+        #BEQZ pz_den, _next
+        #SUBQ pz_ax, ol, pz_wx          ; w = a - o
+        #SUBQ pz_az, ol+8, pz_wz
+        #FMUL pz_wx, pz_dz, tq          ; ns = wx dz - wz dx
+        #FMUL pz_wz, pz_dx, tv
+        #SUBQ tq, tv, pz_ns
+        bit pz_den+3
+        bmi _neg
+        bit pz_ns+3                     ; den > 0: 0 <= ns < den
+        bmi _next
+        #BLEQ pz_den, pz_ns, _next
+        bra _in
+_neg:
+        bit pz_ns+3                     ; den < 0: den < ns <= 0
+        bmi +
+        #BNEZ pz_ns, _next
++       #BLEQ pz_ns, pz_den, _next
+_in:
+        #FMUL pz_wx, pz_ez, tq          ; t = (wx ez - wz ex) / den
+        #FMUL pz_wz, pz_ex, tv
+        #SUBQ tq, tv, td_n
+        #MOVQ pz_den, td_d
+        jsr tdiv
+        stq pz_t
+        ldy pz_nx                       ; insert: later ones move up past it
+        tya
+        asl
+        asl
+        tax
+_ins:
+        cpy #0
+        beq _put
+        sec                             ; t < xt[j - 1]: move that one up
+        lda pz_t
+        sbc pz_xt-4,x
+        lda pz_t+1
+        sbc pz_xt-3,x
+        lda pz_t+2
+        sbc pz_xt-2,x
+        lda pz_t+3
+        sbc pz_xt-1,x
+        bpl _put
+        lda pz_xt-4,x
+        sta pz_xt,x
+        lda pz_xt-3,x
+        sta pz_xt+1,x
+        lda pz_xt-2,x
+        sta pz_xt+2,x
+        lda pz_xt-1,x
+        sta pz_xt+3,x
+        lda pz_xf-1,y
+        sta pz_xf,y
+        dex
+        dex
+        dex
+        dex
+        dey
+        bra _ins
+_put:
+        lda pz_t
+        sta pz_xt,x
+        lda pz_t+1
+        sta pz_xt+1,x
+        lda pz_t+2
+        sta pz_xt+2,x
+        lda pz_t+3
+        sta pz_xt+3,x
+        lda pz_k
+        clc
+        adc #3
+        sta pz_xf,y
+        inc pz_nx
+_next:
+        inc pz_k
+        jmp _edge
+
+;---------------------------------------------------------------------------------------
 ; interval lists. List k is at ivl + k * IVL_SIZE: a count, then intervals of 12 bytes
 ; (t0, prim0, sub0, t1, prim1, sub1). sub bit 7 = flipped normal.
 ;---------------------------------------------------------------------------------------
-; push pv (primitive cpi) as a list at slot lsp
+; push pv (primitive cpi) as a list at slot lsp; a prism's list is pz_ivl
 pv_push:
         ldx lsp
         lda ivl_lo,x
         sta lp
         lda ivl_hi,x
         sta lp+1
+        lda cp_type
+        cmp #T_PRISM
+        bne _pv
+        ldx pz_ivl
+        lda ev_off2,x
+        sta cb_len
+        ldy #0
+-       lda pz_ivl,y
+        sta (lp),y
+        iny
+        cpy cb_len
+        bne -
+        inc lsp
+        rts
+_pv:
         ldy #0
         lda pv_n
         sta (lp),y
@@ -896,18 +1237,31 @@ root_ptr:
         sta rp+1
         rts
 
-; single: carry set if the root at rp is one primitive (A = it)
+; single: carry set if the root at rp is one primitive (A = it), not a prism (which gives
+; a list)
 root_single:
         ldy #R_START
         lda (rp),y
         tax
         lda sc_prog+1,x
         cmp #OP_END
-        bne +
-        lda sc_prog,x
+        bne _no
+        ldy sc_prog,x
+        lda prim_lo,y
+        sta lp
+        lda prim_hi,y
+        sta lp+1
+        tya
+        ldy #P_TYPE
+        tax
+        lda (lp),y
+        cmp #T_PRISM
+        beq _no
+        txa
         sec
         rts
-+       clc
+_no:
+        clc
         rts
 
 ;---------------------------------------------------------------------------------------
@@ -1138,6 +1492,28 @@ _nbox:
         cmp #2
         beq _up
         lda cp_type
+        cmp #T_PRISM
+        bne _nprism
+        jsr pz_points                   ; prism side k: (ez, 0, -ex) * orientation / |e|
+        lda tmp0
+        sec
+        sbc #3
+        asl
+        asl
+        asl
+        tax
+        jsr pz_edge
+        #FMUL pz_ex, pz_ex, tq
+        #FMUL pz_ez, pz_ez, tv
+        #ADDQ tq, tv, tq
+        jsr fsqrt
+        stq tv
+        #FDIV cp_s+8, tv, tt
+        #FMUL pz_ez, tt, nl
+        #NEGQ pz_ex, tq
+        #FMUL tq, tt, nl+8
+        bra _world
+_nprism:
         cmp #T_CYL
         bne _cone
         #FMUL pl, cp_s+8, nl            ; cylinder side: (x / r, 0, z / r)
