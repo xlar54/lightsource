@@ -97,8 +97,8 @@ Speed
 -----
 
 - [x] Faster tracing, every picture unchanged (bit-exact against the models). In Xemu the
-  default scene went from 164 s to 133 s (-19%), shapes.pov -9% or more, prism.pov -11%,
-  parse1.pov -17%:
+  default scene went from 164 s to 133 s (-19%), shapes.pov 236 s to 201 s (-15%),
+  prism.pov 311 s to 267 s (-14%), parse1.pov 386 s to 304 s (-21%):
   - the records copied to chip RAM once per render, the shape before R, so an unrotated
     primitive copies 32 bytes instead of 68;
   - tight bounds: each primitive's extent along x, y and z, not a sphere's (the
