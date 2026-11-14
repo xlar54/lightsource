@@ -19,6 +19,7 @@ ms_ptobj:       .byte $ff               ;  is the selection)
 ms_dview:       .byte 0
 ms_dx:          .word 0
 ms_dy:          .byte 0
+ms_orbit:       .byte 0                 ; 1: dragging in the camera view turns the camera
 ms_msg:         .word 0                 ; the status line's message
 ms_name:        .null "SCENE"           ; the document's name (files: NAME.MDL, .POV, .IFF)
                 .fill 9

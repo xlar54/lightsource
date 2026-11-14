@@ -129,8 +129,8 @@ few pixels is selected. You can also click names in the object list.
 ## Moving things
 
 Drag the selected object, light or camera in the top, front or side view: it moves in that
-view's plane. (The camera view can select but not drag.) Each drag can be undone as one
-step.
+view's plane. (In the camera view a drag turns the camera instead: see below.) Each drag
+can be undone as one step.
 
 For exact positions, type them into the **X**, **Y** and **Z** fields instead.
 
@@ -141,6 +141,22 @@ For exact positions, type them into the **X**, **Y** and **Z** fields instead.
 - **View, Locate** (or **L**) centres those three views on the selected object, light or
   camera, keeping the zoom.
 - **View, Reset** puts the views back as they were at the start.
+
+## Framing the picture
+
+- **View, Aim camera** (or **A**) points the camera at the selected object or light. It
+  stays where it is.
+- **View, Camera front**, **Camera top** and **Camera side** look at the selection (or,
+  with nothing selected, at the point the camera looked at) from the front (-z), from
+  above, or from the side (+x, so that z goes to the right as in the side view), as far
+  away as the camera was. From above it is tipped very slightly: a POV-Ray camera can't
+  look straight down.
+- **Drag on empty space in the camera view** to turn the camera round the point it looks
+  at: across the view to go round, up and down to look from higher or lower. The scene
+  turns with the pointer, a degree for each pixel, and stops short of straight above or
+  below. The distance stays the same.
+
+All of these can be undone.
 
 # Objects
 
@@ -407,6 +423,7 @@ read `.POV` files back.
 | I (or INST) | Add a corner after the picked one |
 | + / - | Zoom in / out |
 | L | Locate the selection |
+| A | Aim the camera at the selection |
 | P | Preview |
 | R | Render |
 | S | Save |
@@ -422,7 +439,7 @@ read `.POV` files back.
 | Scene | Move up, Move down, Indent, Outdent, World... |
 | Add | Sphere, Box, Cylinder, Cone, Plane, Prism, Lathe, Light, Union, Merge, Intersection, Difference |
 | Material | Next, Previous, New (a copy), Edit |
-| View | Zoom in, Zoom out, Locate, Reset |
+| View | Zoom in, Zoom out, Locate, Reset, Aim camera, Camera front, Camera top, Camera side |
 
 [SCREENSHOT: menus | The menus, open]
 

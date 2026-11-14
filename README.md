@@ -67,7 +67,9 @@ the file the same empty scene is built in. Whatever it loads, the document is na
 - **Click a view's name** (its top-left corner) to make it fill the whole view area; click
   the name again for the four views.
 - **Mouse in the views:** click near an object's centre, a light or the camera to select it.
-  Drag to move it in that view's plane.
+  Drag to move it in that view's plane. In the camera view, drag on empty space to turn
+  the camera round the point it looks at (the scene turns with the pointer; it stops short
+  of straight above or below).
 - **Menus:**
   - **File:** New, Open, Save, Save as, Export POV, Preview, Render, Exit (back to BASIC,
     after Y: anything not saved is lost).
@@ -85,7 +87,9 @@ the file the same empty scene is built in. Whatever it loads, the document is na
   - **Material:** Next, Previous, New (a copy), Edit (the properties panel then shows the
     material).
   - **View:** zoom, Locate (the top, front and side views centred on the selection, at
-    the zoom they have), reset.
+    the zoom they have), reset; Aim camera (it looks at the selection); Camera front, top
+    and side (it looks at the selection, or where it looked, from that direction, as far
+    away as it was).
 - **Prisms** are the shape with points to edit. The selected prism has a handle on each
   corner in the top, front and side views (at its top). Click one to pick it (it fills
   in, and the panel shows its CX and CZ), and drag it to move it. I adds a corner half way
@@ -106,7 +110,8 @@ the file the same empty scene is built in. Whatever it loads, the document is na
 - **`CHESS.MDL`**: a king, a rook (ivory) and a knight (ebony) on a board: lathe bodies, box
   battlements and cross, and a prism for the knight's head. Also from `make_mdl.py`.
 - **Keys:** `+`/`-` zoom, DEL delete (the picked corner, or the selection), I add a
-  corner, U (or Ctrl-Z) undo, Y (or Ctrl-Y) redo, L locate, R render, P preview, S save.
+  corner, U (or Ctrl-Z) undo, Y (or Ctrl-Y) redo, L locate, A aim the camera, R render, P preview,
+  S save.
 - **Render** writes the document out as scene text, parses it and renders it full screen.
   Press S on the picture to save it as `NAME.IFF`; any other key or a click goes back.
 - **Preview** is quicker: every 4th pixel of every 2nd line, at most one bounce.

@@ -47,6 +47,9 @@ Next
 - [x] The panel: 9 rows (8 pixels apart); B2 for the checker's second colour, No shadow for
   objects; Sq could not be clicked (the Checker toggle took its row).
 
+- [x] Camera tools: Aim camera (A), Camera front / top / side, and turning the camera by
+  dragging in the camera view.
+
 Modeller: still to do
 ---------------------
 

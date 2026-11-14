@@ -31,6 +31,10 @@ CMD_ZOOMIN      = 40
 CMD_ZOOMOUT     = 41
 CMD_VRESET      = 42
 CMD_LOCATE      = 43
+CMD_AIM         = 44                    ; the camera (modelres.asm cam_cmd)
+CMD_CAMFRONT    = 45
+CMD_CAMTOP      = 46
+CMD_CAMSIDE     = 47
 
 type_names:     .word tn0, tn1, tn2, tn3, tn4, tn5, tn5b, tn6, tn7, tn8, tn9
 tn0:    .null "Sphere"
@@ -1125,6 +1129,9 @@ model_cmd:
 +       cmp #CMD_LOCATE
         bne +
         jmp cmd_locate
++       cmp #CMD_AIM
+        bcc +
+        jmp cam_cmd
 +       cmp #CMD_EXIT
         bne +
         jmp cmd_exit
@@ -1171,6 +1178,8 @@ cmd_changes:
         bcc _no                         ; (World, Undo, Redo)
         cmp #CMD_MATEDIT                ; 19 - 32
         bcc _yes
+        cmp #CMD_AIM                    ; the camera's
+        bcs _yes
 _no:    clc
         rts
 _yes:   sec
@@ -1217,9 +1226,8 @@ _no:    lda #<dc_cancel
         jmp gui_status
 st_exitq:       .null "Leave for BASIC? Anything not saved is lost. Y to leave: "
 
-; Locate: the top, front and side views centred on the selection (its place in the
-; world), at the zoom they have
-cmd_locate:
+; pk_w = the selection's place in the world; carry clear if there's none
+sel_world:
         lda ms_sel
         cmp #DOC_MAXOBJ
         bcs _nobj
@@ -1227,7 +1235,8 @@ cmd_locate:
         lda ms_sel
         sta pk_i
         jsr obj_origin
-        bra _centre
+        sec
+        rts
 _nobj:  cmp #SEL_WORLD
         beq _none
         cmp #$c0                        ; (a material, or nothing)
@@ -1238,6 +1247,16 @@ _nobj:  cmp #SEL_WORLD
         sta pk_w,y
         dey
         bpl -
+        sec
+        rts
+_none:  clc
+        rts
+
+; Locate: the top, front and side views centred on the selection (its place in the
+; world), at the zoom they have
+cmd_locate:
+        jsr sel_world
+        bcc _none
 _centre:
         ldx #0                          ; view v: centre = (w[across], w[up])
 -       stx dv_v

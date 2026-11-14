@@ -178,6 +178,7 @@ model_event:
         sta ms_drag
         lda #0
         sta sb_drag
+        sta ms_orbit
 +       rts
 _down:
         lda #0
@@ -245,6 +246,10 @@ _ins:   jsr pt_valid
 +       cmp #'l'
         bne +
         lda #CMD_LOCATE
+        jmp model_cmd
++       cmp #'a'
+        bne +
+        lda #CMD_AIM
         jmp model_cmd
 +       cmp #'u'
         beq _undo
@@ -383,7 +388,12 @@ _cam:
         jsr pk_try
         lda pk_best
         cmp #$ff
-        beq +
+        bne _picked
+        lda ms_dview                    ; nothing, in the camera view: turn the camera
+        cmp #3
+        bne +
+        jmp cam_orbit_start
+_picked:
         sta ms_sel
         lda ms_dview                    ; drag it from here (not in the camera view)
         cmp #3
@@ -452,6 +462,9 @@ model_drag:
         lda sb_drag                     ; the list's scroll bar
         beq +
         jmp sb_drag_move
++       lda ms_orbit                    ; turning the camera
+        beq +
+        jmp cam_orbit_move
 +       lda ms_drag
         cmp #$ff
         bne +
