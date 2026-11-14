@@ -361,7 +361,7 @@ sv_unswap:
         rol
         rts
 
-sv_mode:        .null ",S,W"
+sv_mode:        .null ",P,W"                ; (PRG: BASIC 65's LOADIFF opens only PRG files)
 sv_name:        .null "SCENE.IFF"
                 .fill 16
 sv_form_id:     .text "FORM"

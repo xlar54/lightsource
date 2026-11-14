@@ -42,6 +42,11 @@ Next
 - [x] Lathes: a profile of 2 to 16 points in the corner pool, written as a merge of cones
   (tested in Xemu: added, a point dragged, rendered: the picture matched the models).
 
+- [x] 64 primitives and 64 top-level objects (was 32): the records in attic (tested: a
+  61-primitive scene's tables and every pixel matched the models).
+- [x] The panel: 9 rows (8 pixels apart); B2 for the checker's second colour, No shadow for
+  objects; Sq could not be clicked (the Checker toggle took its row).
+
 Modeller: still to do
 ---------------------
 

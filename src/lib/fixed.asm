@@ -15,6 +15,8 @@
 ;   #FMUL a, b, dst  #FDIV a, b, dst
 ;   #VMOV src, dst   #VADD a, b, dst   #VSUB a, b, dst   #VSCALE v, s, dst   #DOT a, b, dst
 ;   #ASLQ_Q / #LSRQ_Q / #ASRQ_Q (the Q register), #ASLQ_M / #LSRQ_M addr (a dword)
+;   #BGTQ a, b, label / #BLEQ / #BLTQ (branch on a compare), #BEQZ / #BNEZ a, label,
+;   #ABSQ src, dst, #DBLQ src, dst
 ;   FX(v) (a function): float -> 16.16, for tables: .dint FX(0.4)
 ;
 ; The macros leave their result in Q as well as in dst, so a test can follow directly:
@@ -95,6 +97,60 @@ LDIMM .macro v, dst                     ; dst = constant (raw 32-bit)
         ldz #(((\v) >> 24) & $ff)
         stq \dst
 .endm
+
+; ---- comparing dwords, and branching (signed; the values must not differ by 2^31 or
+; more). Segments, not macros: their + labels stay inside. ---------------------------
+; branch if a > b
+BGTQ .segment a, b, label
+        sec
+        ldq \b
+        sbq \a
+        bmi \label
+.endsegment
+; branch if a <= b
+BLEQ .segment a, b, label
+        sec
+        ldq \b
+        sbq \a
+        bpl \label
+.endsegment
+; branch if a < b
+BLTQ .segment a, b, label
+        sec
+        ldq \a
+        sbq \b
+        bmi \label
+.endsegment
+; branch if the dword is zero
+BEQZ .segment a, label
+        lda \a
+        ora \a+1
+        ora \a+2
+        ora \a+3
+        beq \label
+.endsegment
+BNEZ .segment a, label
+        lda \a
+        ora \a+1
+        ora \a+2
+        ora \a+3
+        bne \label
+.endsegment
+; dst = |src|
+ABSQ .segment src, dst
+        ldq \src
+        stq \dst
+        bit \dst+3
+        bpl +
+        #NEGQ \src, \dst
++
+.endsegment
+; dst = arithmetic shift left of src by one
+DBLQ .segment src, dst
+        ldq \src
+        #ASLQ_Q
+        stq \dst
+.endsegment
 
 ; ---- vectors ---------------------------------------------------------------------------
 VMOV .macro src, dst

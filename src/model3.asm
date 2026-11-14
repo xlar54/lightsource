@@ -574,6 +574,7 @@ props_build:
         #PF 3, PCOL_B, PK_VAL, pl_rz, O_ROT+8
         #PF 4, PCOL_A, PK_VAL, pl_s, O_SCALE
         #PF 6, PCOL_A, PK_MAT, pl_mat, O_MAT
+        #PF 7, PCOL_A, PK_BIT, pl_nosh, O_FLAGS
         ldy #O_TYPE
         lda (lp),y
         cmp #OT_SPHERE
@@ -676,10 +677,11 @@ pb_material:
         #PF 4, PCOL_B, PK_VAL, pl_ref, DM_REFL
         #PF 5, PCOL_A, PK_VAL, pl_trn, DM_TRANS
         #PF 5, PCOL_B, PK_VAL, pl_ior, DM_IOR
+        #PF 6, PCOL_B, PK_VAL, pl_csz, DM_CSCALE  ; (before the toggle: it takes the rest)
         #PF 6, PCOL_A, PK_BIT, pl_chk, DM_FLAGS
-        #PF 6, PCOL_B, PK_VAL, pl_csz, DM_CSCALE
         #PF 7, PCOL_A, PK_VAL, pl_r2, DM_COL2
         #PF 7, PCOL_B, PK_VAL, pl_g2, DM_COL2+4
+        #PF 8, PCOL_A, PK_VAL, pl_b2, DM_COL2+8
         rts
 
 
@@ -695,6 +697,7 @@ pl_r:           .null "R"
 pl_r1:          .null "R1"
 pl_r2:          .null "R2"
 pl_g2:          .null "G2"
+pl_b2:          .null "B2"
 pl_h:           .null "H"
 pl_sx:          .null "SX"
 pl_sy:          .null "SY"
@@ -721,7 +724,7 @@ pl_amb:         .null "Amb"
 pl_ref:         .null "Ref"
 pl_trn:         .null "Trn"
 pl_ior:         .null "IOR"
-pl_chk:         .null "Checker"
+pl_chk:         .null "Chk"
 pl_csz:         .null "Sq"
 
 draw_props:
@@ -744,13 +747,11 @@ _f:
         bne +
         rts
 +       tax
-        lda pf_row,x                    ; y = PROP_Y0 + 9 row + 9 (below the heading)
-        sta tmp0
+        lda pf_row,x                    ; y = PROP_Y0 + 8 row
         asl
         asl
         asl
         clc
-        adc tmp0
         adc #PROP_Y0
         sta d6_y
         lda #0
@@ -857,15 +858,12 @@ st_off:         .null " no"
 prop_click:
         lda ev_y                        ; the row
         sec
-        sbc #PROP_Y0 - 1
+        sbc #PROP_Y0
         bcc _r
-        ldx #0
--       cmp #9
-        bcc +
-        sbc #9
-        inx
-        bra -
-+       stx pc_row
+        lsr
+        lsr
+        lsr
+        sta pc_row
         lda ev_x+1                      ; the column: A (60-69) or B (70-79)
         sta tmp0
         lda ev_x

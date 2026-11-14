@@ -14,8 +14,8 @@ LIST_X          = 480
 LIST_COL        = 61                    ; (the visible boxes are left of it)
 LIST_Y0         = 12
 LIST_ROWS       = 11
-PROP_Y0         = 120
-PROP_ROWS       = 8
+PROP_Y0         = 118                   ; rows 8 pixels apart: 9 of them, to y 189
+PROP_ROWS       = 9
 PCOL_A          = 60
 PCOL_B          = 70
 

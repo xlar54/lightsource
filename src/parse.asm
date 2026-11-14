@@ -18,9 +18,9 @@
 ;=======================================================================================
 
 PW_BASE         = $0800
-PW_PARAMS       = PW_BASE               ; 32 x 32 bytes: each primitive's definition
-PW_LINES        = PW_BASE + $400        ; 32 x 2: its line
-PW_SYMS         = PW_BASE + $440        ; NSYM x SYM_SIZE: declared names
+PW_LINES        = PW_BASE               ; MAX_PRIM x 2: each primitive's line
+PW_BOUND        = PW_BASE + $80         ; MAX_PRIM x 5: its bounding radius, infinite (fin_roots)
+PW_SYMS         = PW_BASE + $1c0        ; NSYM x SYM_SIZE: declared names
 SYM_SIZE        = 48
 NSYM            = 40
 SYM_NAME        = 0                     ; 24 bytes, zero-terminated
@@ -131,7 +131,7 @@ _m17:   .null "too many lights (16 at most)"
 _m18:   .null "not a declared object"
 _m19:   .null "a boolean needs objects"
 _m20:   .null "open shapes are not supported"
-_m21:   .null "too many primitives (32 at most)"
+_m21:   .null "too many primitives (64 at most)"
 _m22:   .null "objects nested too deeply"
 _m23:   .null "scale by 0"
 _m24:   .null "unknown object modifier"
@@ -145,7 +145,7 @@ _m31:   .null "the two ends are at the same point"
 _m32:   .null "bad cone radii"
 _m33:   .null "a plane needs a normal"
 _m34:   .null "booleans nested too deeply"
-_m35:   .null "too many objects (32 at most)"
+_m35:   .null "too many objects (64 at most)"
 _m36:   .null "the objects are too complicated"
 _m37:   .null "the camera looks at its own location"
 _m38:   .null "the camera looks along its sky"
@@ -1484,6 +1484,22 @@ parse_text:
         tax
         tay
         jsr dma_fill
+        lda #$ff                        ; no primitive record in pr_rec yet
+        sta pr_cur
+        lda #<PRIM_ATTIC                ; the records (in attic) all zero
+        sta tmp4
+        lda #>PRIM_ATTIC
+        sta tmp4+1
+        lda #<(MAX_PRIM * PRIM_STRIDE)
+        sta tmp5
+        lda #>(MAX_PRIM * PRIM_STRIDE)
+        sta tmp5+1
+        lda #0
+        ldx #FAR_MB
+        ldy #FAR_BANK
+        jsr dma_fill
+        lda #0
+        sta dmaj_dst_mb
         #LDIMM ONE, amb_light
         #LDIMM ONE, amb_light+4
         #LDIMM ONE, amb_light+8
@@ -1511,6 +1527,7 @@ _st:
         bra _st
 _end:
         jsr finalise
+        jsr prim_flush                  ; (the last record back to attic)
         clc
         rts
 

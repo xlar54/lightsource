@@ -20,7 +20,9 @@ little-mega-people.
 | `keyboard.asm` | – | `key_get` / `key_wait` / `key_flush`: typed keys from the `$D610` hardware queue (for text entry); `dbg_keys` injection |
 | `mouse.asm` | – | `mouse_init` / `mouse_poll`: 1351 mouse in either port, clamped position, debounced click and release edges |
 | `video_fcm.asm` | dma | 320x200 Full Colour framebuffers (double-buffered, optional static HUD rows), palette, `fcm_present` / `fcm_irq` (hooked automatically), `fcm_clear`, full-screen picture screen |
-| `fcm640.asm` | dma | 640x200 Full Colour Mode, 256 colours: two 128,000-byte framebuffers (row-major cells), `f640_init`, `f640_show`, `f640_clear`, `f640_row` + `#F640_PUT` (write a scan line pixel by pixel), `f640_palette` (256 entries from three tables). Needs `f640_ptr` (dword) and `f640_pal_r/g/b` (words) on the project's base page. Buffer 1 is in `$20000-$3FFFF`: `rom_unprotect` first |
+| `fcm640.asm` | dma | 640x200 Full Colour Mode, 256 colours: two 128,000-byte framebuffers (row-major cells), `f640_init`, `f640_show`, `f640_clear`, `f640_row` + `#F640_PUT` (write a scan line pixel by pixel), `f640_palette` (256 entries from three tables), `f640_copy10` (buffer 1 to 0). Needs `f640_ptr` (dword) and `f640_pal_r/g/b` (words) on the project's base page. The buffers can be anywhere (`F640_BUF0/1`: buffer 1 in attic is drawn into, then shown with `f640_copy10`), and so can the screen RAMs (`F640_SCR0/1`, default `$12000` / `$13000` in bank 1, which leaves bank 0 to the program). A buffer in `$20000-$3FFFF` needs `rom_unprotect` first |
+| `draw640.asm` | fcm640, font8 | Drawing into the 640x200 framebuffer, clipped to `d6_cx0..d6_cy1`: `d6_plot`, `d6_hline`, `d6_vline`, `d6_fill`, `d6_frame`, `d6_line` (signed ends, clipped per pixel), `d6_text` / `d6_char` (8x8 ASCII at any pixel row, transparent or on a colour). Font: `D6_FONT` (default `font8`) |
+| `font8.asm` | - | An 8x8 font, ASCII 32-127, bit 7 = the left pixel (the IBM PC CGA ROM font, public domain) |
 | `blit.asm` | dma, video_fcm | `blit_sprite`: column-major FCM sprites, transparent, clipped, bounding boxes |
 | `vblit.asm` | dma, video_fcm | `vblit_sprite`: sprites of any size up to 255x255 (tables from a build tool, trimmed to the opaque box), from any chip-RAM or attic address; anchor-relative, clipped, `vb_clip` right edge for side panels |
 | `fcm_text.asm` | video_fcm | `ftext_draw` / `ftext_centre` / `ftext_char` / `ftext_dec`: 8x8 text at any pixel position in the back buffer, any palette colour, optional drop shadow, multi-line (13). Font: `FTEXT_FONT`, 64 screen-code glyphs |
@@ -34,10 +36,11 @@ little-mega-people.
 | `audio.asm` | – | `audio_init` (mixer routing), `audio_play` / `audio_stop` (samples on any channel), `stream_start` / `stream_frame` (long 8-bit or packed 4-bit audio from attic) |
 | `sid.asm` | – | `sid_init`, `sfx_play`, `sfx_frame`: table-driven SID effects; `SID_MIRROR` = a second SID's address sends every write there too, for both speakers |
 | `rtc.asm` | – | `rtc_read`: time and date in binary, 24-hour, validated (handles Xemu's binary month) |
-| `fixed.asm` | – | 16.16 signed fixed point on the 32-bit Q register: `fmul`, `fdiv`, `fsqrt` (exact floor, Newton on the divider), `ppow` (Phong powers); `#MOVQ #ADDQ #SUBQ #NEGQ #FMUL #FDIV`, vector `#VADD #VSUB #VSCALE #DOT`, the Q shifts 64tass lacks (`#ASLQ_Q` ...), `FX(v)` for tables. Include `lib/fixed_zp.asm` inside the project's base-page block (39 bytes) |
+| `fixed.asm` | – | 16.16 signed fixed point on the 32-bit Q register: `fmul`, `fdiv`, `fsqrt` (exact floor, Newton on the divider), `ppow` (Phong powers); `#MOVQ #ADDQ #SUBQ #NEGQ #FMUL #FDIV`, vector `#VADD #VSUB #VSCALE #DOT`, the Q shifts 64tass lacks (`#ASLQ_Q` ...), compare-and-branch segments (`#BGTQ #BLEQ #BLTQ #BEQZ #BNEZ`), `#ABSQ`, `#DBLQ`, `FX(v)` for tables. Include `lib/fixed_zp.asm` inside the project's base-page block (39 bytes) |
+| `fixtrig.asm` | fixed | `fsin_deg` / `fcos_deg`: sine and cosine of an angle in degrees (16.16), whole degrees from a table and linear in between. `FT_PTR`: a base-page word it may change (default `ptr0`) |
 | `math.asm` | – | `mul16`, `div16` (hardware), `rand`, `rand_seed_hw` (hardware RNG, bounded wait) |
 
-For a DOS-style text interface (menus, dialogs, a file dialog, mouse, per-cell colours), see `src/tui/README.md`.
+For a DOS-style text interface (menus, dialogs, a file dialog, mouse, per-cell colours), see the template's `src/lib/tui/README.md` (renderer65 doesn't use it: its modeller is graphical, `gui.asm` on `draw640.asm`).
 
 ## Default memory layout
 
@@ -53,7 +56,7 @@ Override any default by defining the symbol before the `.include` (the defaults 
 | HYPPO name buffer | `$1E00` | Only while mounting at boot |
 | Hardware sprite pointers | inside the program | `hws_ptrs`, 16-byte aligned. Shapes must be 64-byte aligned. |
 | Audio ring | `$14000`-`$15FFF` | Must be chip RAM for audio DMA |
-| `fcm640` buffers 0 / 1 | `$40000` / `$20000` | 128,000 bytes each; screen RAMs `$0800` and `$C000` (4000 bytes each, so the program must end below `$C000`) |
+| `fcm640` buffers 0 / 1 | `$40000` / `$20000` (or attic) | 128,000 bytes each; screen RAMs `$12000` and `$13000` (4000 bytes each, bank 1) |
 | FCM sprites | `$20000`-`$3FFFF` | Call `rom_unprotect` first. The text font is read from `$29800`, so don't overwrite it while text mode is in use. |
 | Framebuffer A / picture | `$40000` | 64,000 bytes at 25 rows |
 | Framebuffer B | `$50000` | |

@@ -118,7 +118,9 @@ The compiled scene
 The parser turns the text into tables in bank 0, which the tracer reads directly. The
 Python model builds the same tables bit for bit.
 
-**Primitive record** (128 bytes each, up to 32):
+**Primitive record** (128 bytes each, up to 64, in attic at `$8302000`, 160 bytes apart: the
+last 32 of each hold the parser's copy of the definition. The tracer copies a record by DMA
+when it tests the primitive, and each one's type is also in bank 0, `sc_ptype`):
 
 | Offset | Size | What |
 |---|---|---|

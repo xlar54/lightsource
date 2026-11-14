@@ -132,6 +132,8 @@ DOC_SIZE        = doc_end - doc_start   ; (the part in bank 0)
 MDL_SIZE        = DOC_SIZE + POOL_BYTES ; a .MDL file
         .cerror DOC_PTS + POOL_BYTES > SC_PTS, "the corner pool runs into the scene's points"
         .cerror SC_PTS + 8 * MAX_PTS > FAR_SCRATCH, "the scene's points run into the scratch area"
+        .cerror FAR_SCRATCH + POOL_BYTES > PRIM_ATTIC, "the scratch area runs into the primitives"
+        .cerror PRIM_ATTIC + PRIM_STRIDE * MAX_PRIM > $10000, "the primitives leave the FAR bank"
 
 obj_lo:         .byte <(doc_objs + range(DOC_MAXOBJ) * OBJ_SIZE)
 obj_hi:         .byte >(doc_objs + range(DOC_MAXOBJ) * OBJ_SIZE)

@@ -59,7 +59,7 @@ machine-specific in `private/`, not in checked-in files.
 - **Keep `README.md` up to date** with what the project is, how to build and run it, controls,
   architecture and known differences. Keep a `TODO.md` for remaining work.
 - **Credit every bundled tool in `README.md`.** Any third-party program checked into a repo (at least
-  `64tass.exe` and `c1541.exe`) gets a "Bundled tools" section: what it's used for, its version, and links to
+  `64tass.exe`, `c1541.exe` and `petcat.exe`) gets a "Bundled tools" section: what it's used for, its version, and links to
   its project and source, plus a note that its own licence applies to it. Keep the section current when a tool
   is added, removed or updated, and before a repo is published.
 - **Assets** are editable sources in `src/assets/` (PNG sprite sheets, asm tables, font and sound
@@ -79,7 +79,7 @@ machine-specific in `private/`, not in checked-in files.
 
 | What | Where |
 |---|---|
-| Assembler / disk tool | `64tass.exe` (v1.60) and `c1541.exe` in the repo root |
+| Assembler / disk tool | `64tass.exe` (v1.60), `c1541.exe` and `petcat.exe` (BASIC 65: `-w65`) in the repo root |
 | 64tass manual | https://tass64.sourceforge.net/ (directives, `.weak`, `.virtual`, functions, list expressions, `--cbm-prg`, `-C` case-sensitive, `-I` include path) |
 | Python | `python` (Pillow and pypdf) |
 
@@ -163,7 +163,9 @@ The MEGA65 book (the "Compendium"): see the page table at the top of `docs/MEGA6
 - **Returning to BASIC:** on real hardware the font is in WOM (`$FF7E000`). Save the CHARPTR
   bytes at boot and put them back.
 - c1541 writes lowercase ASCII names as PETSCII *unshifted*. Put names in upper case in the
-  asm `.text` (for example `"MDCOMMON"`). Write the game twice, as the first file and as `autoboot.c65`.
+  asm `.text` (for example `"MDCOMMON"`). The disk's **first file is `autoboot.c65`, a one-line BASIC
+  program `10 RUN "NAME"`** (`tools/autoboot.py`, run by `build.bat`), then the game, once: Xemu's
+  `-autoload` runs the first file and a real MEGA65 runs `AUTOBOOT.C65` at power-on, so both start it.
 
 **Taking over the machine**
 

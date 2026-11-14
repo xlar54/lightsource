@@ -27,6 +27,23 @@ Still to come: animation.
 The modeller
 ------------
 
+Picture viewer
+--------------
+
+`VIEWER` on the disk is a BASIC 65 program ([src/basic/viewer.bas](src/basic/viewer.bas)) that
+shows the pictures the renderer saves. Leave the modeller (File, Exit), then `RUN "VIEWER"`.
+It lists the disk's `.IFF` files; type a name and press RETURN to see it on a 640x200,
+256-colour screen, and any key to go back. RETURN on its own stops. It uses BASIC 65's
+`LOADIFF`, which opens only PRG files, so the renderer saves its pictures as PRG.
+
+The modeller
+------------
+
+The user's manual is [docs/modeller-manual.pdf](docs/modeller-manual.pdf) (a draft: the
+screenshots are placeholders). Its text is [docs/manual/modeller.md](docs/manual/modeller.md);
+`private/tools/make_manual.py` builds the PDF (it needs reportlab), putting in any
+`docs/manual/shots/NAME.png` it finds.
+
 A 640x200 interface in 256 colours, used with the mouse and keyboard. It starts with
 `DEFAULT.MDL` from the disk (File, New loads it too): no objects, the camera at the origin
 looking along +z, one light and one white material. Save as `DEFAULT` to change it; without
@@ -79,13 +96,15 @@ the file the same empty scene is built in. Whatever it loads, the document is na
   like a prism's corners (handles in the front and side views; the panel shows the picked
   point's R and Y; I adds a point, DEL removes one). A new one is a pawn. The scene text
   has it as a `merge` of cones, one for each segment that isn't level, so it is solid
-  (no hollow cups), each segment is a primitive (32 in a scene), and POV-Ray reads it too.
+  (no hollow cups), each segment is a primitive (64 in a scene), and POV-Ray reads it too.
 - **`MEGA65.MDL`** on the disk is an example: the word in prisms (the A's and the 6's holes
   are boxes cut out with a Difference), glass balls, gold cones and a mirror ball. File,
   Open, then click `MEGA65`. It is made by `private/tools/make_mdl.py` (`scenes/mega65.mdl`).
 - **`JUGGLER.MDL`**: a robot (copper torso, box head, brass limbs) juggling three mirror
   balls over a checker floor: 30 objects, all of them primitives the modeller makes. Also
   from `make_mdl.py`.
+- **`CHESS.MDL`**: a king, a rook (ivory) and a knight (ebony) on a board: lathe bodies, box
+  battlements and cross, and a prism for the knight's head. Also from `make_mdl.py`.
 - **Keys:** `+`/`-` zoom, DEL delete (the picked corner, or the selection), I add a
   corner, U (or Ctrl-Z) undo, Y (or Ctrl-Y) redo, L locate, R render, P preview, S save.
 - **Render** writes the document out as scene text, parses it and renders it full screen.
@@ -127,7 +146,6 @@ Build-time test settings go in `M65DEFS`, for example `set M65DEFS=-D DBG_ROWS=8
 | `DBG_BOOTRENDER=1` | Render `SCENE.POV` at boot instead of starting the modeller |
 | `DBG_SCENEBIN=1` | Use tables made by `pov.py` instead of parsing |
 | `DBG_LOG=1` | Trace one pixel with a value log |
-| `DBG_GUITEST=1` | Draw the `draw640` test screen |
 
 The `done` byte reports progress:
 
@@ -151,7 +169,8 @@ examples. Every file the system accepts is also valid for POV-Ray itself. To fra
 same way there, render at 640x375 with `right x*640/375`.
 
 The limits:
-- 32 primitives, 16 materials, 16 lights and 32 top-level objects.
+- 64 primitives, 16 materials, 16 lights and 64 top-level objects (the modeller's documents
+  have up to 32 objects, but lathes and groups can make more primitives than that).
 - Booleans nested 7 deep.
 - Numbers to 4 decimal places, below 32767.
 - Keep everything within about 120 units of the camera.
@@ -225,17 +244,18 @@ Differences from tinyraytracer
 Bundled tools
 -------------
 
-The repo root includes two Windows command-line tools that `build.bat` runs:
+The repo root includes three Windows command-line tools that `build.bat` runs:
 
 | Tool | Used for | Project | Source |
 |---|---|---|---|
 | `64tass.exe` (v1.60.3243) | Assembler | [64tass](https://tass64.sourceforge.net/) | [SourceForge](https://sourceforge.net/projects/tass64/) |
 | `c1541.exe` (VICE 3.9) | Writes the D81 | [VICE](https://vice-emu.sourceforge.io/) | [GitHub mirror](https://github.com/VICE-Team/svn-mirror) |
+| `petcat.exe` (VICE 3.6.1) | Tokenises the BASIC 65 programs (`src/basic/*.bas`, `-w65`) | [VICE](https://vice-emu.sourceforge.io/) | [GitHub mirror](https://github.com/VICE-Team/svn-mirror) |
 
 These are separate projects by their own authors, distributed under the GNU GPL, and included
 unmodified so that the project builds without installing anything else. Their licences apply to
-them, not to this project. `src/font8.asm` is cut from the IBM PC CGA ROM font (public domain),
-by way of `src/tui/tui_font.asm`.
+them, not to this project. `src/lib/font8.asm` is cut from the IBM PC CGA ROM font (public
+domain), by way of the MEGA65 template's `src/lib/tui/tui_font.asm`.
 
 Note: this is a 45GS02 target. `STZ` stores the Z register, not zero. See
 `docs/MEGA65_NOTES.md` for MEGA65 programming notes, and `.claude/CLAUDE.md` for the short

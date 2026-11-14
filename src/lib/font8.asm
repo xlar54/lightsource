@@ -1,28 +1,6 @@
-; src/tui/tui_font_mixed.asm - the bundled part of the TUI_CHARSET = 1 font, in the same style as
-; tui_font.asm, from which these are taken: the TUI's lines and arrows, and ASCII. The rest of the
-; font, PETSCII's graphics, comes from ROM (tui_petscii.asm).
-TUI_LOW_GLYPHS = 19
-tui_font_low:
-        .byte $00, $00, $00, $00, $FF, $00, $00, $00 ; TG_HLINE
-        .byte $18, $18, $18, $18, $18, $18, $18, $18 ; TG_VLINE
-        .byte $00, $00, $00, $00, $1F, $18, $18, $18 ; TG_TL
-        .byte $00, $00, $00, $00, $F8, $18, $18, $18 ; TG_TR
-        .byte $18, $18, $18, $18, $1F, $00, $00, $00 ; TG_BL
-        .byte $18, $18, $18, $18, $F8, $00, $00, $00 ; TG_BR
-        .byte $18, $18, $18, $18, $1F, $18, $18, $18 ; TG_LTEE
-        .byte $18, $18, $18, $18, $F8, $18, $18, $18 ; TG_RTEE
-        .byte $11, $44, $11, $44, $11, $44, $11, $44 ; TG_SHADE
-        .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; TG_BLOCK
-        .byte $18, $3C, $7E, $18, $18, $18, $18, $00 ; TG_UP
-        .byte $18, $18, $18, $18, $7E, $3C, $18, $00 ; TG_DOWN
-        .byte $00, $18, $0C, $FE, $0C, $18, $00, $00 ; TG_RIGHT
-        .byte $00, $30, $60, $FE, $60, $30, $00, $00 ; TG_LEFT
-        .byte $02, $0E, $3E, $FE, $3E, $0E, $02, $00 ; TG_LLINK
-        .byte $80, $E0, $F8, $FE, $F8, $E0, $80, $00 ; TG_RLINK
-        .byte $00, $00, $18, $3C, $3C, $18, $00, $00 ; TG_BULLET
-        .byte $00, $00, $00, $00, $FF, $FF, $FF, $FF ; TG_LOWER
-        .byte $FF, $FF, $FF, $FF, $00, $00, $00, $00 ; TG_UPPER
-tui_font_ascii:
+; lib/font8.asm - an 8x8 font for lib/draw640.asm: ASCII 32-127, 8 bytes a glyph (bit 7 = the left pixel).
+; The IBM PC CGA ROM font (public domain), cut from the template's src/lib/tui/tui_font.asm.
+font8:
         .byte $00, $00, $00, $00, $00, $00, $00, $00 ; $20
         .byte $18, $3C, $3C, $18, $18, $00, $18, $00 ; $21
         .byte $6C, $6C, $6C, $00, $00, $00, $00, $00 ; $22

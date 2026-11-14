@@ -16,10 +16,8 @@ primitive:
         bcc +
         #PERR E_PRIMS
 +       tax
-        lda par_lo,x
-        sta pa
-        lda par_hi,x
-        sta pa+1
+        jsr prim_ptr_x                  ; its record (in pr_rec), the definition at P_PAR
+        jsr pr_par
         txa
         asl
         tax
@@ -180,7 +178,7 @@ _done:
         #ISKW KW_OPEN
         bne +
         #PERR E_OPEN
-+       ldx sc_nprim
++       ldx sc_nprim                    ; (the cache still has it: lp = pr_rec)
         jsr prim_ptr_x
         ldy #0
         lda pr_type
@@ -201,8 +199,6 @@ _done:
         lda sc_nprim
         inc sc_nprim
         jmp emit
-par_lo:         .byte <(PW_PARAMS + range(MAX_PRIM) * 32)
-par_hi:         .byte >(PW_PARAMS + range(MAX_PRIM) * 32)
 
 ; V's 3 parts / 1 part into the parameters at (pa) + Y
 par_put12:
@@ -224,13 +220,56 @@ par_put4:
         bne -
         rts
 
-; lp = primitive X's record
+; lp = primitive X's record: it is copied from attic into pr_rec (the one there before is
+; written back first, unless it is the same one). X is kept. prim_flush writes back the
+; last one.
 prim_ptr_x:
-        lda prim_lo,x
+        cpx pr_cur
+        beq _here
+        phx
+        jsr prim_flush
+        plx
+        stx pr_cur
+        jsr pr_addr
+        #XC_FROM pr_aw, 1
+        #XC_TO pr_rw, 0
+        jsr pr_copy
+        ldx pr_cur
+_here:  lda #<pr_rec
         sta lp
-        lda prim_hi,x
+        lda #>pr_rec
         sta lp+1
         rts
+prim_flush:
+        ldx pr_cur
+        cpx #$ff
+        beq +
+        jsr pr_addr
+        #XC_FROM pr_rw, 0
+        #XC_TO pr_aw, 1
+        jsr pr_copy
++       rts
+; pr_aw = record X's offset in the FAR bank
+pr_addr:
+        lda prim_lo,x
+        sta pr_aw
+        lda prim_hi,x
+        sta pr_aw+1
+        rts
+pr_copy:
+        lda #<PRIM_STRIDE
+        sta xc_n
+        lda #>PRIM_STRIDE
+        sta xc_n+1
+        jmp xcopy
+; pa = the definition in the cached record
+pr_par:
+        lda #<(pr_rec + P_PAR)
+        sta pa
+        lda #>(pr_rec + P_PAR)
+        sta pa+1
+        rts
+pr_rw:          .word pr_rec
 
 ; an identity transform (A = I, t = 0) at (lp) + Y
 put_ident:
@@ -1176,10 +1215,7 @@ _d0:    lda #0
 fin_prim:
         ldx ro_i
         jsr prim_ptr_x
-        lda par_lo,x
-        sta pa
-        lda par_hi,x
-        sta pa+1
+        jsr pr_par
         txa
         asl
         tax
@@ -1204,6 +1240,8 @@ fin_prim:
         ldy #P_TYPE
         lda (lp),y
         sta fp_type
+        ldx ro_i                        ; (and in bank 0, for the tracer)
+        sta sc_ptype,x
         ; the columns of A and their lengths
         .for xj = 0, xj < 3, xj += 1
         #MOVQ fm+xj*4, fcol+xj*12
@@ -1268,16 +1306,30 @@ fp_write:
         sta tmp0
 +       lda tmp0
         sta (lp),y
-        ldy #0                          ; the bound, into the parameter slot
-        ldx #0
--       lda fp_br,x
+        lda ro_i                        ; the bound: PW_BOUND + 5 i
+        jsr pw_bound
+        ldy #0
+-       lda fp_br,y
         sta (pa),y
         iny
-        inx
-        cpx #4
+        cpy #4
         bne -
         lda fp_inf
         sta (pa),y
+        rts
+; pa = PW_BOUND + 5 A (A < 64)
+pw_bound:
+        sta pa
+        asl
+        asl
+        clc
+        adc pa
+        clc
+        adc #<PW_BOUND
+        sta pa
+        lda #>PW_BOUND
+        adc #0
+        sta pa+1
         rts
 
 ; tv3 = tq >> 8 (tq >= 0)
@@ -1789,10 +1841,8 @@ bx_push_prim:
         bne +
         lda #0
         sta fn_fl
-+       lda par_lo,x
-        sta pa
-        lda par_hi,x
-        sta pa+1
++       txa
+        jsr pw_bound
         ldy #0
 -       lda (pa),y
         sta fp_br,y

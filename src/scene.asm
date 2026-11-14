@@ -8,15 +8,18 @@
 ; tests compare them.
 ;=======================================================================================
 
-MAX_PRIM        = 32
+MAX_PRIM        = 64
 MAX_MAT         = 16
 MAX_LIGHT       = 16
-MAX_ROOT        = 32
+MAX_ROOT        = 64
 MAX_PTS         = 255                   ; prism points in all (each outline stored closed)
 SC_PTS          = $0800                 ; the points (x and z, 8 bytes each): in attic,
                                         ; at FAR_ADDR + SC_PTS (doc.asm)
 MAX_PRISM_PTS   = 16                    ; corners of one prism
-PRIM_SIZE       = 128
+PRIM_SIZE       = 128                   ; a primitive's record (what the tracer reads)
+PRIM_STRIDE     = 160                   ; records in attic: + 32 bytes the parser keeps
+P_PAR           = PRIM_SIZE             ; its definition in (sphere c, r; box a, b; ...)
+PRIM_ATTIC      = $2000                 ; the records: attic, at FAR_ADDR + this (doc.asm)
 MAT_SIZE        = 80
 LIGHT_SIZE      = 28
 ROOT_SIZE       = 20
@@ -83,12 +86,16 @@ P_HOT           = 68                    ; the bytes the intersection tests use
 P_TEXA          = 68
 P_TEXT          = 104
 
-SCENE_SIZE      = HDR_SIZE + LIGHT_SIZE * MAX_LIGHT + ROOT_SIZE * MAX_ROOT + 256 + MAT_SIZE * MAX_MAT + PRIM_SIZE * MAX_PRIM
+; the tables in bank 0; the primitive records are in attic (prim_lo / prim_hi: offsets in
+; the FAR bank), with each one's type here too (sc_ptype) for the tracer's quick checks
+SCENE_SIZE      = HDR_SIZE + LIGHT_SIZE * MAX_LIGHT + ROOT_SIZE * MAX_ROOT + 256 + MAT_SIZE * MAX_MAT + MAX_PRIM
         .if DBG_SCENEBIN
 scene:          .binary "scene.bin"     ; a test build: the tables as pov.py made them
         .cerror * - scene != SCENE_SIZE, "scene.bin is the wrong size"
 scene_pts:      .binary "scenepts.bin"  ; and the prism points in use (boot copies them
 scene_pts_end:                          ; to SC_PTS)
+scene_prims:    .binary "sceneprims.bin" ; and the primitive records (to PRIM_ATTIC)
+scene_prims_end:
         .cerror scene_pts_end - scene_pts > 8 * MAX_PTS, "scenepts.bin is too big"
         .else
         .section bss
@@ -100,7 +107,7 @@ sc_lights       = sc_hdr + HDR_SIZE
 sc_roots        = sc_lights + LIGHT_SIZE * MAX_LIGHT
 sc_prog         = sc_roots + ROOT_SIZE * MAX_ROOT
 sc_mats         = sc_prog + 256
-sc_prims        = sc_mats + MAT_SIZE * MAX_MAT
+sc_ptype        = sc_mats + MAT_SIZE * MAX_MAT  ; each primitive's type
 
 sc_nprim        = sc_hdr + SC_NPRIM
 sc_nmat         = sc_hdr + SC_NMAT
@@ -121,5 +128,5 @@ mat_lo:         .byte <(sc_mats + range(MAX_MAT) * MAT_SIZE)
 mat_hi:         .byte >(sc_mats + range(MAX_MAT) * MAT_SIZE)
 light_lo:       .byte <(sc_lights + range(MAX_LIGHT) * LIGHT_SIZE)
 light_hi:       .byte >(sc_lights + range(MAX_LIGHT) * LIGHT_SIZE)
-prim_lo:        .byte <(sc_prims + range(MAX_PRIM) * PRIM_SIZE)
-prim_hi:        .byte >(sc_prims + range(MAX_PRIM) * PRIM_SIZE)
+prim_lo:        .byte <(PRIM_ATTIC + range(MAX_PRIM) * PRIM_STRIDE)   ; (attic offsets)
+prim_hi:        .byte >(PRIM_ATTIC + range(MAX_PRIM) * PRIM_STRIDE)

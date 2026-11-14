@@ -36,7 +36,6 @@ DBG_PASS2       = 1
 DBG_SCENEBIN    = 0
 DBG_LOG         = 0
 DBG_SAVE        = 1
-DBG_GUITEST     = 0                     ; 1: just draw the draw640 test screen
 DBG_BOOTRENDER  = 0                     ; 1: render SCENE.POV at boot (the tests), not the
                                         ;    modeller
 DBG_PX          = 0
@@ -218,12 +217,6 @@ _ovl:
         jsr render_palette
         cli
 
-        .if DBG_GUITEST
-        jsr gui_test
-        lda #1
-        sta done
-        jmp idle
-        .endif
         .if DBG_LOG
         jsr render_pixel
         lda #1
@@ -260,6 +253,17 @@ _ovl:
         lda #0
         ldx #(scene_pts_end - scene_pts) / 8
         jsr px_put
+        #XC_FROM sp_src, 0               ; and the primitive records
+        #XC_TO sp_dst, 1
+        lda #<(scene_prims_end - scene_prims)
+        sta xc_n
+        lda #>(scene_prims_end - scene_prims)
+        sta xc_n+1
+        jsr xcopy
+        bra +
+sp_src:         .word scene_prims
+sp_dst:         .word PRIM_ATTIC
++
         .endif
         lda #OVL_TRACE
         jsr ovl_load
@@ -356,9 +360,10 @@ ovl_name:       .text "OVL0"
         .include "lib/kstream.asm"
         .include "lib/fcm640.asm"
         .include "lib/fixed.asm"
+FT_PTR          = lp                    ; (fixtrig: not ptr0, the parser's text pointer)
         .include "lib/fixtrig.asm"
         .include "lib/draw640.asm"
-        .include "font8.asm"
+        .include "lib/font8.asm"
         .include "lib/keyboard.asm"
         .include "lib/mouse.asm"
         .include "lib/hwsprite.asm"
@@ -367,9 +372,6 @@ ovl_name:       .text "OVL0"
         .include "modelst.asm"
         .include "modes.asm"
         .include "modelres.asm"
-        .if DBG_GUITEST
-        .include "guitest.asm"
-        .endif
         .include "scene.asm"
 res_image_end:                          ; (the end of what LOAD puts in memory)
         .dsection bss

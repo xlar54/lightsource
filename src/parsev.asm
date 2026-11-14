@@ -160,6 +160,9 @@ ca_fv:          .fill 12
 ca_half:        .dword 0
 ca_sin:         .dword 0
 pr_n:           .byte 0                 ; prisms
+pr_cur:         .byte 0                 ; the primitive in pr_rec ($ff: none)
+pr_aw:          .word 0
+pr_rec:         .fill PRIM_STRIDE       ; its record (a copy; prim_ptr_x)
 fz_i:           .byte 0
 fz_a:           .fill 16
 fz_area:        .dword 0

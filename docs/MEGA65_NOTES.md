@@ -129,7 +129,10 @@ Every reordering of this that has been tried broke something.
 ### BASIC stubs and autoboot
 
 - `BANK 0 : SYS 8210` puts the entry at `$2012` (the template's stub).
-- `AUTOBOOT.C65` on the disk starts on reset. Either write the game twice (first file + `AUTOBOOT.C65`) or make `AUTOBOOT.C65` a one-line BASIC program `10 RUN "NAME"`.
+- `AUTOBOOT.C65` on the disk starts on reset. Make it the disk's first file and a one-line BASIC program
+  `10 RUN "NAME"` (the template's `tools/autoboot.py` writes it; `$8A` is RUN's token): Xemu's
+  `-autoload` runs the first file, so both start the game, and the game is on the disk once instead
+  of twice.
 - Tokenised BASIC PRG: load address, then lines of (next-line pointer, binary line number, tokens, `$00`), ending with a `$0000` pointer. BASIC65 extended tokens are two bytes, `CE xx` / `FE xx`.
 - `DLOAD` of a PRG writes bank-0 RAM from `$2001` and can load contiguously up to `$F6FF`. [?] Bytes past `$C000` in a loaded PRG don't chain-load reliably; clear `$C000-$CFFF` at start.
 
@@ -359,7 +362,7 @@ The multiplier's output is live: `MULTOUT` changes as soon as an input does. To 
 
 - **640x200, 256 colours:** FCM with H640 (`$D031` bit 7), 80 chars a row (`$D05E` = 80, LINESTEP 160), 4000-byte screen RAM and 4000 bytes of colour RAM cleared. A framebuffer is 128,000 bytes: `$40000-$5F3FF`, and a second one fits in `$20000-$3F3FF` after `rom_unprotect`. `lib/fcm640.asm` lays the cells out row by row. Xemu shows a pixel 1 wide and 2 tall; on a 4:3 PAL display it is about 1.875 times taller than wide. [Xemu]
 
-- **A colour for every cell's foreground and background:** text modes have one background colour for the whole screen. In FCM, pixel value `$FF` draws in the cell's colour-RAM colour (book, Q-28). So render the font once per background with foreground pixels at `$FF`: the character number picks glyph and background, colour RAM picks the foreground. 256 glyphs x 8 backgrounds = 128 KB, which fills banks 4-5. Works at 80 columns (H640) in Xemu. `src/tui/tui_screen.asm`.
+- **A colour for every cell's foreground and background:** text modes have one background colour for the whole screen. In FCM, pixel value `$FF` draws in the cell's colour-RAM colour (book, Q-28). So render the font once per background with foreground pixels at `$FF`: the character number picks glyph and background, colour RAM picks the foreground. 256 glyphs x 8 backgrounds = 128 KB, which fills banks 4-5. Works at 80 columns (H640) in Xemu. The template's `src/lib/tui/tui_screen.asm`.
 
 ### Software sprites and scrolling in a framebuffer
 
@@ -594,6 +597,12 @@ When something works in Xemu and not on hardware, suspect the environment (MAP, 
   - `m <28-bit addr>` reads (`m ffd3060` for VIC-IV, `m 8000000` for attic); `r` shows PC and MAP live.
   - The C65 KERNAL image is at `$3E000`.
   - `b` breakpoints didn't stop the CPU, but `t1`/`t` single-stepping from a hold point did.
+- **BASIC 65's `LOADIFF` opens only PRG files.** An IFF saved as SEQ (`,S,W`) gives
+  `?FILE OPEN` (error 2), even with nothing else open; the same bytes as a PRG load and show,
+  palette and all. renderer65 saves its pictures with `,P,W`.
+- **Keys poked into the KERNAL buffer reach the `READY.` prompt but not a running program's
+  `INPUT`** (in Xemu: the count at `$D0` goes back to 0 and nothing is typed). To test a BASIC
+  program's later steps, build a copy with the answers filled in.
 - **Typing into BASIC from a test:** the C65 KERNAL's keyboard buffer is ``, its count `` (from ADDKEY, `` -> ``). Poke `52 55 4E 0D` and `04` to type RUN and RETURN at the `READY.` prompt. The monitor's `g` is no substitute for RUN: BASIC's MAP is still in place, and the jump ran into a BRK.
 - Each poke or peek over the monitor takes about 0.3 s, which is many frames. Give the program a frame-timed input script (pairs of joystick bits and frame counts played into a `dbg_joy` byte) instead of timing pokes. In sleepless mode, idle timers run out within seconds; use real-time mode to catch timed animations.
 - Expose `dbg_*` bytes and state bytes to poke and peek. Count the frames actually drawn as well as the frame counter. A per-tick trace buffer (x/y/state per logic tick) helps compare against expected motion. A program can also copy its text output to attic for the harness to read.

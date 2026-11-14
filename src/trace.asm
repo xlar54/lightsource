@@ -27,59 +27,6 @@ IVL_SIZE        = 1 + MAXIV * 12        ; count, then (t0, prim0, sub0, t1, prim
 IVL_SLOTS       = 8                     ; 7 for the program's stack, the last for combine
 CHECK_TOL       = 66
 
-; ---- comparisons of dwords (signed; the values never differ by 2^31 or more) ----------
-; branch if a > b
-BGTQ .segment a, b, label
-        sec
-        ldq \b
-        sbq \a
-        bmi \label
-.endsegment
-; branch if a <= b
-BLEQ .segment a, b, label
-        sec
-        ldq \b
-        sbq \a
-        bpl \label
-.endsegment
-; branch if a < b
-BLTQ .segment a, b, label
-        sec
-        ldq \a
-        sbq \b
-        bmi \label
-.endsegment
-; branch if the dword is zero
-BEQZ .segment a, label
-        lda \a
-        ora \a+1
-        ora \a+2
-        ora \a+3
-        beq \label
-.endsegment
-BNEZ .segment a, label
-        lda \a
-        ora \a+1
-        ora \a+2
-        ora \a+3
-        bne \label
-.endsegment
-; dst = |src|
-ABSQ .segment src, dst
-        ldq \src
-        stq \dst
-        bit \dst+3
-        bpl +
-        #NEGQ \src, \dst
-+
-.endsegment
-; dst = arithmetic shift left of src by one
-DBLQ .segment src, dst
-        ldq \src
-        #ASLQ_Q
-        stq \dst
-.endsegment
-
 ; debug builds (DBG_LOG = 1): append n bytes at addr to the log at DBG_LOGBUF
 LOG .macro addr, n
         .if DBG_LOG
@@ -181,13 +128,13 @@ prim_load:
         lda #1
 +       sta cp_own
         rts
-cp_job:
-        .byte DMAOPT_F018B, DMAOPT_SRC_MB, 0, DMAOPT_DST_MB, 0, DMAOPT_END
+cp_job:                                 ; (from the record in attic)
+        .byte DMAOPT_F018B, DMAOPT_SRC_MB, FAR_MB, DMAOPT_DST_MB, 0, DMAOPT_END
         .byte DMACMD_COPY
         .word P_HOT
 cp_job_src:
         .word 0
-        .byte 0
+        .byte FAR_BANK
         .word cp
         .byte 0
         .byte 0
@@ -1247,17 +1194,10 @@ root_single:
         cmp #OP_END
         bne _no
         ldy sc_prog,x
-        lda prim_lo,y
-        sta lp
-        lda prim_hi,y
-        sta lp+1
-        tya
-        ldy #P_TYPE
-        tax
-        lda (lp),y
+        lda sc_ptype,y
         cmp #T_PRISM
         beq _no
-        txa
+        tya
         sec
         rts
 _no:
@@ -1567,20 +1507,18 @@ _flip:
         bne +
         #VMOV cm_c1, cm_dc
         rts
-+       ldx hit_p                       ; the texture matrix and offset
-        lda prim_lo,x
++       ldx hit_p                       ; the texture matrix and offset (DMA from attic)
         clc
+        lda prim_lo,x
         adc #P_TEXA
-        sta lp
+        sta tex_job_src
         lda prim_hi,x
         adc #0
-        sta lp+1
-        ldy #0
--       lda (lp),y
-        sta tex,y
-        iny
-        cpy #48
-        bne -
+        sta tex_job_src+1
+        lda #>tex_job
+        sta DMA_ADDRMSB
+        lda #<tex_job
+        sta DMA_ADDRLSB_ETRIG
         lda #0
         sta tmp0                        ; parity
         .for si = 0, si < 3, si += 1
@@ -1975,6 +1913,18 @@ _put:
         ldx tb_i
         sta out_r,x
         rts
+
+tex_job:
+        .byte DMAOPT_F018B, DMAOPT_SRC_MB, FAR_MB, DMAOPT_DST_MB, 0, DMAOPT_END
+        .byte DMACMD_COPY
+        .word 48
+tex_job_src:
+        .word 0
+        .byte FAR_BANK
+        .word tex
+        .byte 0
+        .byte 0
+        .word 0
 
 q_eps:          .dint EPS
 q_one1:         .dint ONE + 1
