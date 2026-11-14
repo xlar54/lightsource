@@ -83,6 +83,9 @@ the file the same empty scene is built in. Whatever it loads, the document is na
 - **`MEGA65.MDL`** on the disk is an example: the word in prisms (the A's and the 6's holes
   are boxes cut out with a Difference), glass balls, gold cones and a mirror ball. File,
   Open, then click `MEGA65`. It is made by `private/tools/make_mdl.py` (`scenes/mega65.mdl`).
+- **`JUGGLER.MDL`**: a robot (copper torso, box head, brass limbs) juggling three mirror
+  balls over a checker floor: 30 objects, all of them primitives the modeller makes. Also
+  from `make_mdl.py`.
 - **Keys:** `+`/`-` zoom, DEL delete (the picked corner, or the selection), I add a
   corner, U (or Ctrl-Z) undo, Y (or Ctrl-Y) redo, L locate, R render, P preview, S save.
 - **Render** writes the document out as scene text, parses it and renders it full screen.
