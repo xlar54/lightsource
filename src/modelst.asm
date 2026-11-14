@@ -2,6 +2,9 @@
 ; modelst.asm - the modeller's state that must survive an overlay swap (resident)
 ;=======================================================================================
 ms_inited:      .byte 0
+ms_ubase:       .byte 0                 ; undo: the oldest snapshot's slot (model4.asm)
+ms_ui:          .byte 0                 ; snapshots before the current state
+ms_un:          .byte 0                 ; snapshots in all (the ones above ms_ui: redo)
 ms_sel:         .byte $ff               ; $00-$1f object, $40+ light, $80 camera, $c0+
                                         ; material (being edited), $ff nothing
 ms_view:        .fill 3 * 12            ; ortho views: zoom, centre across, centre up

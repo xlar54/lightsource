@@ -222,7 +222,7 @@ _prim:
         asl
         tax
         jmp (_p,x)
-_p:     .word wp_sphere, wp_box, wp_cyl, wp_cone, wp_plane, wp_prism
+_p:     .word wp_sphere, wp_box, wp_cyl, wp_cone, wp_plane, wp_prism, wp_lathe
 wp_done:
         jsr w_mods
         #WS ws_close_nl
@@ -309,6 +309,71 @@ wp_cone:
 wp_plane:
         #WS ws_plane
         jmp wp_done
+; a lathe: merge { cone { <0, y0, 0>, |r0|, <0, y1, 0>, |r1| } ... } for each segment
+; that isn't level and isn't on the axis at both ends
+wp_lathe:
+        #WS ws_merge
+        ldy #O_PN
+        lda (wo),y
+        sta wr_k
+        tax
+        ldy #O_PFIRST
+        lda (wo),y
+        jsr pool_get
+        lda #0
+        sta wr_m
+_seg:
+        lda wr_m
+        inc a
+        cmp wr_k
+        bcc +
+        jmp wp_done
++       asl                             ; points m and m + 1: wl_a (r0, y0, r1, y1)
+        asl
+        asl
+        tax
+        ldy #0
+-       lda pt_buf-8,x
+        sta wl_a,y
+        inx
+        iny
+        cpy #16
+        bne -
+        #ABSQ wl_a, wl_a
+        #ABSQ wl_a+8, wl_a+8
+        #SUBQ wl_a+12, wl_a+4, tq       ; level: no cone
+        #BEQZ tq, _skip
+        lda wl_a                        ; both radii 0: none
+        ora wl_a+1
+        ora wl_a+2
+        ora wl_a+3
+        ora wl_a+8
+        ora wl_a+9
+        ora wl_a+10
+        ora wl_a+11
+        beq _skip
+        #WS ws_cyl1x                    ; cone { <0, y0, 0>, r0, <0, y1, 0>, r1 }
+        lda #<(wl_a + 4)
+        ldx #>(wl_a + 4)
+        jsr w_num
+        #WS ws_cone2
+        lda #<wl_a
+        ldx #>wl_a
+        jsr w_num
+        #WS ws_cone3
+        lda #<(wl_a + 12)
+        ldx #>(wl_a + 12)
+        jsr w_num
+        #WS ws_cyl3
+        lda #<(wl_a + 8)
+        ldx #>(wl_a + 8)
+        jsr w_num
+        #WS ws_seg_end
+_skip:  inc wr_m
+        bra _seg
+ws_seg_end:     .null " } "
+wl_a:           .fill 16
+
 wp_prism:
         #WS ws_prism                    ; prism { -h/2, h/2, n + 1, <x, z>, ... <x0, z0>
         lda #$ff                        ; (closed: the first point again, as POV-Ray

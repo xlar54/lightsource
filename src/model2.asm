@@ -2,12 +2,16 @@
 ; model2.asm - the modeller's drawing: world transforms, wireframes, the views
 ;=======================================================================================
 
+; redraw_all: the whole screen (after a picture had it). redraw_work: the views, the list,
+; the properties and the status line, which each fill their own area: the screen isn't
+; cleared and the menu bar stays as it is.
 redraw_all:
-        lda #GC_BG                      ; everything, then each part
+        lda #GC_BG
         sta f640_fill
         lda #0
         jsr f640_clear
         jsr gui_menubar
+redraw_work:
         jsr draw_views
         jsr draw_list
         jsr draw_props
@@ -595,7 +599,7 @@ draw_obj:
         asl
         tax
         jmp (_t,x)
-_t:     .word wf_sphere, wf_box, wf_cyl, wf_cone, wf_plane, wf_prism
+_t:     .word wf_sphere, wf_box, wf_cyl, wf_cone, wf_plane, wf_prism, wf_lathe
 
 ; a prism: its outline at y = -h/2 and +h/2, and an edge up from each corner. Selected
 ; (and in an ortho view): a handle on each corner (filled: the one picked)
@@ -628,6 +632,8 @@ _e:
         lda wp_k
         cmp wp_n
         bne _e
+; the selected prism's or lathe's corners: handles (not in the camera view)
+wf_handles:
         lda dv_i
         cmp ms_sel
         bne _r
@@ -800,6 +806,53 @@ wf_plane:
         jsr seg_local
         .next
         rts
+
+; a lathe: a ring at each point of its profile, and lines up its sides at 0, 90, 180
+; and 270 degrees from each point to the next
+wf_lathe:
+        ldx dv_i
+        jsr pp_setup
+        lda #1
+        sta ci_plane
+        lda #0
+        sta wp_k
+_p:
+        lda wp_k                        ; the ring: radius x, at height z
+        jsr pt_get_a
+        #MOVQ sg_a+8, ci_h
+        #MOVQ sg_a, ci_rr
+        #BEQZ ci_rr, +
+        jsr circle_r
++       lda wp_k                        ; the sides, to the next point
+        inc a
+        cmp wp_n
+        beq _h
+        jsr pt_get_b
+        lda wp_k
+        jsr pt_get_a
+        #MOVQ sg_a+8, sg_a+4            ; (r, h) -> (r, h, 0)
+        #MOVQ sg_b+8, sg_b+4
+        #MOVQ q_zero, sg_a+8
+        #MOVQ q_zero, sg_b+8
+        jsr seg_local
+        #MOVQ sg_a, sg_a+8              ; (0, h, r)
+        #MOVQ sg_b, sg_b+8
+        #MOVQ q_zero, sg_a
+        #MOVQ q_zero, sg_b
+        jsr seg_local
+        #NEGQ sg_a+8, sg_a              ; (-r, h, 0)
+        #NEGQ sg_b+8, sg_b
+        #MOVQ q_zero, sg_a+8
+        #MOVQ q_zero, sg_b+8
+        jsr seg_local
+        #MOVQ sg_a, sg_a+8              ; (0, h, -r)
+        #MOVQ sg_b, sg_b+8
+        #MOVQ q_zero, sg_a
+        #MOVQ q_zero, sg_b
+        jsr seg_local
+        inc wp_k
+        bra _p
+_h:     jmp wf_handles
 
 ; a circle of 16 segments, radius ci_r1, in plane ci_plane (0: x-y, 1: x-z at y = ci_h,
 ; 2: y-z)

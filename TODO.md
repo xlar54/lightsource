@@ -39,6 +39,9 @@ Next
     of several prisms (the others' corners move); duplicate, delete, save, open.
   - Not done: handles in the camera view; dragging the height; a mesh (triangles).
 
+- [x] Lathes: a profile of 2 to 16 points in the corner pool, written as a merge of cones
+  (tested in Xemu: added, a point dragged, rendered: the picture matched the models).
+
 Modeller: still to do
 ---------------------
 
@@ -46,7 +49,8 @@ Modeller: still to do
 - [ ] Dragging an object inside a transformed group moves it in the group's frame, not the
   view's.
 - [x] The list's scroll bar (page clicks, dragging the thumb; tested in Xemu by injected events).
-- [ ] Undo.
+- [x] Undo and redo: 16 snapshots of the document in attic (tested in Xemu: add, delete,
+  drag, typed values, hiding; redo dropped by a new change).
 - [ ] Rotate and scale by dragging (keys or handles).
 - [ ] Editing lights' colours and the background as colours (now three numbers each).
 - [x] File, Open: a list of the disk's `.MDL` files (tested in Xemu by injected events:

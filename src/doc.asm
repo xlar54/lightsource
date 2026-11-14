@@ -12,6 +12,8 @@
 ;   plane    the plane y = 0 (solid below)
 ;   prism    p0 = height (along y, centred); its outline (3 to 16 corners, x and z) is
 ;            in the corner pool: O_PFIRST = its first corner there, O_PN = how many
+;   lathe    its profile (2 to 16 points: radius in x, height in z) in the corner pool as
+;            a prism's; turned about y. Written as a merge of cones, one a segment
 ;   groups   union, merge, intersection, difference of their children
 ;
 ; The corner pool is in attic RAM (FAR_ADDR + DOC_PTS: DOC_POOL corners of 8 bytes, x and
@@ -45,10 +47,11 @@ OT_CYL          = 2
 OT_CONE         = 3
 OT_PLANE        = 4
 OT_PRISM        = 5
-OT_UNION        = 6
-OT_MERGE        = 7
-OT_INTER        = 8
-OT_DIFF         = 9
+OT_LATHE        = 6
+OT_UNION        = 7
+OT_MERGE        = 8
+OT_INTER        = 9
+OT_DIFF         = 10
 OT_GROUP        = OT_UNION              ; types from here on are groups
 
 ; object record
@@ -264,10 +267,12 @@ po_obj:
         sta txt_ptr
         lda obj_hi,x
         sta txt_ptr+1
-        ldy #O_TYPE
+        ldy #O_TYPE                     ; (prisms and lathes have corners)
         lda (txt_ptr),y
         cmp #OT_PRISM
-        rts
+        beq +
+        cmp #OT_LATHE
++       rts
 
 ; pool_open: room for X corners at place A (the ones from there move up; prisms that
 ; start there or later start that much later). Carry set if the pool is full.

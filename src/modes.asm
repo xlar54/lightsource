@@ -108,14 +108,29 @@ _back:
         ldx dc_m+1
         rts
 
-; doc_new: the default document (tinyraytracer's scene, in overlay 5), then the
-; modeller's overlay again
+; doc_new: a new document: DEFAULT.MDL from the disk, or if it can't be read the built-in
+; one (overlay 5); named SCENE either way. Then the modeller's overlay again.
 doc_new:
         lda #OVL_WRITE
         jsr ovl_load
         jsr doc_default
-        lda #OVL_MODEL
+        ldx #0
+-       lda dn_default,x
+        sta ms_name,x
+        beq +
+        inx
+        bra -
++       jsr doc_load                    ; (it leaves the document alone if it fails)
+        ldx #0
+-       lda dn_scene,x
+        sta ms_name,x
+        beq +
+        inx
+        bra -
++       lda #OVL_MODEL
         jmp ovl_load
+dn_default:     .null "DEFAULT"
+dn_scene:       .null "SCENE"
 
 ; dc_msg = "Disk trouble: NN" (A = the drive's status; $ff = not a document)
 dc_status_msg:

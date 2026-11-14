@@ -180,6 +180,8 @@ model_event:
         sta sb_drag
 +       rts
 _down:
+        lda #0
+        sta dr_moved
         lda ev_y
         cmp #10
         bcs +
@@ -237,8 +239,24 @@ _ins:   jsr pt_valid
         lda #CMD_PREVIEW
         jmp model_cmd
 +       cmp #'s'
-        bne _r
+        bne +
         lda #CMD_SAVE
+        jmp model_cmd
++       cmp #'l'
+        bne +
+        lda #CMD_LOCATE
+        jmp model_cmd
++       cmp #'u'
+        beq _undo
+        cmp #$1a
+        bne +
+_undo:  lda #CMD_UNDO
+        jmp model_cmd
++       cmp #'y'
+        beq _redo
+        cmp #$19
+        bne _r
+_redo:  lda #CMD_REDO
         jmp model_cmd
 _r:     rts
 
@@ -302,15 +320,15 @@ view_click:
         beq +
         lda #$ff                        ; large: back to four
         sta ms_maxview
-        jmp redraw_all
+        jmp redraw_work
 +       lda ms_dview
         sta ms_maxview
-        jmp redraw_all
+        jmp redraw_work
 _pick:
         jsr world_all                   ; every object's place
         jsr pt_pick                     ; a corner of the selected prism?
         bcc +
-        jmp redraw_all
+        jmp redraw_work
 +       lda #0                          ; (a click anywhere else lets go of the corner)
         sta ms_dpt
         lda #$ff
@@ -377,7 +395,7 @@ _cam:
         sta ms_dx+1
         lda ev_y
         sta ms_dy
-+       jmp redraw_all
++       jmp redraw_work
 
 ; pk_w (world) seen in view ms_dview: if it's nearer the click than pk_bd, pk_i is it
 pk_try:
@@ -438,6 +456,10 @@ model_drag:
         cmp #$ff
         bne +
         rts
++       lda dr_moved                    ; its first move: undo can go back to before it
+        bne +
+        inc dr_moved
+        jsr u_save
 +       jsr sel_pos_ptr                 ; lp = the selection's position (bank 0), or none
         bcs +
         rts
@@ -629,6 +651,11 @@ pp_setup:
         ldq ci_hh
         #ASRQ_Q
         stq ci_hh
+        ldy #O_TYPE                     ; pp_lathe: 1 for a lathe
+        lda (op),y
+        sec
+        sbc #OT_PRISM
+        sta pp_lathe
         ldy #O_PN
         lda (op),y
         sta wp_n
@@ -668,10 +695,17 @@ pt_get_b:
         cpy #4
         bne -
         rts
-; pk_w = corner A at the top (y = ci_hh), in the world
+; pk_w = corner A in the world: a prism's at its top (y = ci_hh), a lathe's (radius,
+; height) at (r, h, 0)
 pt_world:
         jsr pt_get_a
-        #MOVQ ci_hh, sg_a+4
+        lda pp_lathe
+        beq +
+        #MOVQ sg_a+8, sg_a+4
+        #MOVQ q_zero, sg_a+8
+        bra ++
++       #MOVQ ci_hh, sg_a+4
++
         #VMOV sg_a, xf_in
         jsr xf_point
         #VMOV xf_out, pk_w
@@ -696,8 +730,10 @@ pt_pick:
         ldy #O_TYPE
         lda (op),y
         cmp #OT_PRISM
+        beq +
+        cmp #OT_LATHE
         bne _no
-        jsr pp_setup
++       jsr pp_setup
         lda #$ff
         sta pk_best
         lda #6                          ; (within 5 pixels)
@@ -775,10 +811,33 @@ pt_drag:
         sta wcur,y
         dey
         bpl -
-        .for si in [(0, lr_x), (2, lr_y)]
-        #MOVQ wcur+si[0]*4, mm_c
-        #MOVQ wcur+12+si[0]*4, mm_c+4
-        #MOVQ wcur+24+si[0]*4, mm_c+8
+        lda #8                          ; a prism's second number is along z, a lathe's
+        sta tmp2                        ; along y
+        ldx ms_sel
+        jsr po_obj
+        cmp #OT_LATHE
+        bne +
+        lda #4
+        sta tmp2
++       .for si in [(0, lr_x), (2, lr_y)]
+        .if si[0] == 0
+        #MOVQ wcur, mm_c
+        #MOVQ wcur+12, mm_c+4
+        #MOVQ wcur+24, mm_c+8
+        .else
+        ldx tmp2                        ; column tmp2 / 4 of A
+        ldy #0
+-       lda wcur,x
+        sta mm_c,y
+        lda wcur+12,x
+        sta mm_c+4,y
+        lda wcur+24,x
+        sta mm_c+8,y
+        inx
+        iny
+        cpy #4
+        bne -
+        .endif
         #DOT mm_c, dl_v, tq
         #DOT mm_c, mm_c, tv3m
         #BNEZ tv3m, +
@@ -803,6 +862,7 @@ _r:     rts
 
 ; I: a corner after the picked one, half way along the edge to the next
 pt_insert:
+        jsr u_save                      ; (txt_ptr: pt_valid's, untouched by it)
         ldy #O_PN                       ; (txt_ptr = the object, from pt_valid)
         lda (txt_ptr),y
         sta wp_n
@@ -848,13 +908,14 @@ pt_insert:
         sta (txt_ptr),y
         inc ms_pt
         jsr pt_store
-        jmp redraw_all
+        jmp redraw_work
 st_pmax:        .null "A prism has 16 corners at most"
 st_pmin:        .null "A prism needs 3 corners at least"
 st_pfull:       .null "No room for more corners (255 in all)"
 
 ; DEL: the picked corner goes
 pt_delete:
+        jsr u_save
         ldy #O_PN
         lda (txt_ptr),y
         sta wp_n
@@ -878,7 +939,8 @@ pt_delete:
         cmp ms_pt                       ; it was the last: the one before it now
         bne +
         dec ms_pt
-+       jmp redraw_all
++       jmp redraw_work
 
         .include "model2.asm"
         .include "model3.asm"
+        .include "model4.asm"

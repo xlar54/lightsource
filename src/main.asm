@@ -366,6 +366,7 @@ ovl_name:       .text "OVL0"
         .include "doc.asm"
         .include "modelst.asm"
         .include "modes.asm"
+        .include "modelres.asm"
         .if DBG_GUITEST
         .include "guitest.asm"
         .endif

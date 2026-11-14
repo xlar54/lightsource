@@ -18,111 +18,28 @@ CMD_DOWN        = 13
 CMD_INDENT      = 14
 CMD_OUTDENT     = 15
 CMD_WORLD       = 16
+CMD_UNDO        = 17
+CMD_REDO        = 18
 SEL_WORLD       = $81                   ; ms_sel: the world settings ($80: the camera)
 CMD_ADDLIGHT    = 19
 CMD_ADD         = 20                    ; + OT_* (20-29)
-CMD_MATNEXT     = 30
-CMD_MATPREV     = 31
-CMD_MATNEW      = 32
-CMD_MATEDIT     = 33
+CMD_MATNEXT     = 31
+CMD_MATPREV     = 32
+CMD_MATNEW      = 33
+CMD_MATEDIT     = 34
 CMD_ZOOMIN      = 40
 CMD_ZOOMOUT     = 41
 CMD_VRESET      = 42
+CMD_LOCATE      = 43
 
-gui_menus:
-        .byte 1
-        .null "File"
-        .byte CMD_NEW
-        .null "New"
-        .byte CMD_OPEN
-        .null "Open..."
-        .byte CMD_SAVE
-        .null "Save"
-        .byte CMD_SAVEAS
-        .null "Save as..."
-        .byte CMD_EXPORT
-        .null "Export POV"
-        .byte CMD_PREVIEW
-        .null "Preview   P"
-        .byte CMD_RENDER
-        .null "Render    R"
-        .byte CMD_EXIT
-        .null "Exit"
-        .byte 0
-        .byte 7
-        .null "Edit"
-        .byte CMD_DELETE
-        .null "Delete  DEL"
-        .byte CMD_DUP
-        .null "Duplicate"
-        .byte 0
-        .byte 13
-        .null "Scene"
-        .byte CMD_UP
-        .null "Move up"
-        .byte CMD_DOWN
-        .null "Move down"
-        .byte CMD_INDENT
-        .null "Indent"
-        .byte CMD_OUTDENT
-        .null "Outdent"
-        .byte CMD_WORLD
-        .null "World..."
-        .byte 0
-        .byte 20
-        .null "Add"
-        .byte CMD_ADD + OT_SPHERE
-        .null "Sphere"
-        .byte CMD_ADD + OT_BOX
-        .null "Box"
-        .byte CMD_ADD + OT_CYL
-        .null "Cylinder"
-        .byte CMD_ADD + OT_CONE
-        .null "Cone"
-        .byte CMD_ADD + OT_PLANE
-        .null "Plane"
-        .byte CMD_ADD + OT_PRISM
-        .null "Prism"
-        .byte CMD_ADDLIGHT
-        .null "Light"
-        .byte CMD_ADD + OT_UNION
-        .null "Union"
-        .byte CMD_ADD + OT_MERGE
-        .null "Merge"
-        .byte CMD_ADD + OT_INTER
-        .null "Intersection"
-        .byte CMD_ADD + OT_DIFF
-        .null "Difference"
-        .byte 0
-        .byte 25
-        .null "Material"
-        .byte CMD_MATNEXT
-        .null "Next"
-        .byte CMD_MATPREV
-        .null "Previous"
-        .byte CMD_MATNEW
-        .null "New (a copy)"
-        .byte CMD_MATEDIT
-        .null "Edit"
-        .byte 0
-        .byte 35
-        .null "View"
-        .byte CMD_ZOOMIN
-        .null "Zoom in     +"
-        .byte CMD_ZOOMOUT
-        .null "Zoom out    -"
-        .byte CMD_VRESET
-        .null "Reset"
-        .byte 0
-        .byte 0
-
-type_names:     .word tn0, tn1, tn2, tn3, tn4, tn5, tn6, tn7, tn8, tn9
+type_names:     .word tn0, tn1, tn2, tn3, tn4, tn5, tn5b, tn6, tn7, tn8, tn9
 tn0:    .null "Sphere"
 tn1:    .null "Box"
 tn2:    .null "Cylinder"
 tn3:    .null "Cone"
 tn4:    .null "Plane"
 tn5:    .null "Prism"
+tn5b:   .null "Lathe"
 tn6:    .null "Union"
 tn7:    .null "Merge"
 tn8:    .null "Intersection"
@@ -541,11 +458,17 @@ list_click:
         sta op
         lda obj_hi,x
         sta op+1
+        jsr u_save
+        ldx dl_e
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
         ldy #O_FLAGS
         lda (op),y
         eor #OF_HIDE
         sta (op),y
-        jmp redraw_all
+        jmp redraw_work
 _ent:   lda dl_e                        ; the entry -> the selection
         cmp doc_nobj
         bcc _set
@@ -564,7 +487,7 @@ _set:   sta ms_sel
         ldx #>st_hello
         sta ms_msg
         stx ms_msg+1
-        jmp redraw_all
+        jmp redraw_work
 _r:     rts
 
 ;=======================================================================================
@@ -674,19 +597,29 @@ props_build:
         #PF 5, PCOL_A, PK_VAL, pl_r2, O_P+4
         #PF 5, PCOL_B, PK_VAL, pl_h, O_P+8
         rts
-+       cmp #OT_PRISM
-        bne +
++       cmp #OT_LATHE
+        beq _corner
+        cmp #OT_PRISM
+        bne _r
         #PF 4, PCOL_B, PK_VAL, pl_h, O_P
-        jsr pt_valid                    ; the corner picked: its x and z (a copy in
-        bcc +                           ; pt_cur: prop_click puts it back)
+_corner:
+        jsr pt_valid                    ; the corner picked: its two numbers (a copy in
+        bcc _r                          ; pt_cur: prop_click puts it back)
         jsr pt_load
-        lda #<pt_cur
-        sta lp
-        lda #>pt_cur
-        sta lp+1
+        ldy #O_TYPE                     ; (txt_ptr: the object, from pt_valid)
+        lda (txt_ptr),y
+        ldx #<pt_cur
+        stx lp
+        ldx #>pt_cur
+        stx lp+1
+        cmp #OT_LATHE
+        beq _lathe
         #PF 5, PCOL_A, PK_VAL, pl_cx, 0
         #PF 5, PCOL_B, PK_VAL, pl_cz, 4
-+       rts
+_r:     rts
+_lathe: #PF 5, PCOL_A, PK_VAL, pl_r, 0  ; a lathe's: radius, height
+        #PF 5, PCOL_B, PK_VAL, pl_py, 4
+        rts
 pb_light:
         and #$3f
         tax
@@ -976,6 +909,7 @@ _hit:
         lda pf_kind,x
         cmp #PK_MAT
         bne _edit
+        jsr u_save
         ldy #0                          ; the next material (or none)
         lda (lp),y
         clc
@@ -985,15 +919,16 @@ _hit:
         bcc _setm
         lda #0
 _setm:  sta (lp),y
-        jmp redraw_all
+        jmp redraw_work
 _edit:
         cmp #PK_BIT
         bne +
+        jsr u_save
         ldy #0
         lda (lp),y
         eor #1
         sta (lp),y
-        jmp redraw_all
+        jmp redraw_work
 +       cmp #PK_NAME
         bne _num
         ldy #0                          ; a name: edit it
@@ -1009,6 +944,7 @@ _edit:
         ldx #>st_pname
         jsr gui_edit
         bcs _esc                        ; (ESC: the status line is back as it was)
+        jsr u_save
         ldx pc_f
         lda pf_adr_lo,x
         sta lp
@@ -1023,7 +959,7 @@ _edit:
         bne -
         lda #0
         sta (lp),y
-_done:  jmp redraw_all
+_done:  jmp redraw_work
 _num:
         ; a number: start from its value
         cmp #PK_WORD
@@ -1074,8 +1010,9 @@ _num:
         ldx #>st_notnum
         sta ms_msg
         stx ms_msg+1
-        jmp redraw_all
-+       ldx pc_f
+        jmp redraw_work
++       jsr u_save
+        ldx pc_f
         lda pf_adr_lo,x
         sta lp
         lda pf_adr_hi,x
@@ -1091,7 +1028,7 @@ _num:
 _wb:    ldy #0                          ; (a byte: its low part)
         lda gf_v+2
         sta (lp),y
-        jmp redraw_all
+        jmp redraw_work
 +       ldy #0
 -       lda gf_v,y
         sta (lp),y
@@ -1101,7 +1038,7 @@ _wb:    ldy #0                          ; (a byte: its low part)
         jsr pt_valid                    ; (a corner's x or z went into pt_cur: back to
         bcc +                           ;  the pool; the same value if it was another)
         jsr pt_store
-+       jmp redraw_all
++       jmp redraw_work
 _esc:   rts
 st_pname:       .null "Name: "
 st_eq:          .null " = "
@@ -1115,6 +1052,16 @@ model_cmd:
         cmp #0
         bne +
         rts
++       jsr cmd_changes                 ; a change to the document: undo can go back
+        bcc +
+        jsr u_save
++       lda mc_cmd
+        cmp #CMD_UNDO
+        bne +
+        jmp cmd_undo
++       cmp #CMD_REDO
+        bne +
+        jmp cmd_redo
 +       cmp #CMD_NEW
         bne +
         jsr model_reset
@@ -1176,7 +1123,10 @@ model_cmd:
 +       cmp #CMD_VRESET
         bne +
         jsr views_reset
-        jmp redraw_all
+        jmp redraw_work
++       cmp #CMD_LOCATE
+        bne +
+        jmp cmd_locate
 +       cmp #CMD_EXIT
         bne +
         jmp cmd_exit
@@ -1184,31 +1134,68 @@ model_cmd:
         bne +
         lda #SEL_WORLD
         sta ms_sel
-        jmp redraw_all
+        jmp redraw_work
 +       ; files and renders: resident code (other overlays)
         lda mc_cmd
         jsr do_command                  ; -> A/X = a message
         sta ms_msg
         stx ms_msg+1
+        jsr open_check
+        lda ms_msg
+        ldx ms_msg+1
         cmp #<dc_cancel                 ; cancelled: nothing changed but the status line
         bne +
         cpx #>dc_cancel
         bne +
         jmp gui_status
-+       jsr gui_on
++       jsr gui_on                      ; (a render or a file: the whole screen)
         jmp redraw_all
 _msg_redraw:
         lda #<st_hello
         ldx #>st_hello
         sta ms_msg
         stx ms_msg+1
-        jmp redraw_all
+        jmp redraw_work
+
+; carry set if command mc_cmd changes the document (u_save first): New, Open, Delete ..
+; Outdent, the Add commands, and the material ones but Edit
+cmd_changes:
+        lda mc_cmd
+        cmp #CMD_NEW
+        beq _yes
+        cmp #CMD_OPEN
+        beq _yes
+        cmp #CMD_DELETE
+        bcc _no
+        cmp #CMD_WORLD                  ; 10 - 15
+        bcc _yes
+        cmp #CMD_ADDLIGHT
+        bcc _no                         ; (World, Undo, Redo)
+        cmp #CMD_MATEDIT                ; 19 - 32
+        bcc _yes
+_no:    clc
+        rts
+_yes:   sec
+        rts
+; after do_command: an Open that didn't open anything takes its u_save back
+open_check:
+        lda mc_cmd
+        cmp #CMD_OPEN
+        bne +
+        lda ms_msg
+        cmp #<dc_opened
+        bne _back
+        lda ms_msg+1
+        cmp #>dc_opened
+        beq +
+_back:  jmp u_unsave
++       rts
 
 ; a message A/X, then everything again
 say:
         sta ms_msg
         stx ms_msg+1
-        jmp redraw_all
+        jmp redraw_work
 
 ; Exit: back to BASIC, once Y is typed (the document isn't saved: nothing keeps track
 ; of changes)
@@ -1232,8 +1219,83 @@ _no:    lda #<dc_cancel
         jmp gui_status
 st_exitq:       .null "Leave for BASIC? Anything not saved is lost. Y to leave: "
 
-cmd_zoom:
-        sta cz_f
+; Locate: the top, front and side views centred on the selection (its place in the
+; world), at the zoom they have
+cmd_locate:
+        lda ms_sel
+        cmp #DOC_MAXOBJ
+        bcs _nobj
+        jsr world_all                   ; an object: its world origin
+        lda ms_sel
+        sta pk_i
+        jsr obj_origin
+        bra _centre
+_nobj:  cmp #SEL_WORLD
+        beq _none
+        cmp #$c0                        ; (a material, or nothing)
+        bcs _none
+        jsr sel_pos_ptr                 ; a light or the camera: its position
+        ldy #11
+-       lda (lp),y
+        sta pk_w,y
+        dey
+        bpl -
+_centre:
+        ldx #0                          ; view v: centre = (w[across], w[up])
+-       stx dv_v
+        txa
+        asl
+        adc dv_v
+        asl
+        asl
+        sta tmp0                        ; 12 v
+        lda vw_ha,x
+        jsr _part
+        clc
+        lda tmp0
+        adc #4
+        tay
+        jsr _put
+        ldx dv_v
+        lda vw_va,x
+        jsr _part
+        clc
+        lda tmp0
+        adc #8
+        tay
+        jsr _put
+        ldx dv_v
+        inx
+        cpx #3
+        bne -
+        jmp redraw_work
+_none:  lda #<st_nothing
+        ldx #>st_nothing
+        jmp say
+_part:  ; tv3m = w[axis A]
+        asl
+        asl
+        tax
+        ldy #0
+-       lda pk_w,x
+        sta tv3m,y
+        inx
+        iny
+        cpy #4
+        bne -
+        rts
+_put:   ; ms_view + Y = tv3m
+        ldx #0
+-       lda tv3m,x
+        sta ms_view,y
+        iny
+        inx
+        cpx #4
+        bne -
+        rts
+st_nothing:     .null "Select something to locate"
+
+cmd_zoom:        sta cz_f
         stx cz_f+1
         sty cz_f+2
         lda #0
@@ -1241,7 +1303,7 @@ cmd_zoom:
         .for si = 0, si < 3, si += 1
         #FMUL ms_view+si*12, cz_f, ms_view+si*12
         .next
-        jmp redraw_all
+        jmp redraw_work
 
 ;---------------------------------------------------------------------------------------
 ; the outline: subtrees, inserting and removing records
@@ -1344,10 +1406,12 @@ cmd_add:
         lda mc_cmd
         sbc #CMD_ADD
         sta ca_t
-        cmp #OT_PRISM                   ; a prism needs room in the corner pool
-        bne +
-        jsr pool_count
-        cmp #DOC_POOL - NEW_CORNERS + 1
+        cmp #OT_PRISM                   ; a prism or lathe needs room in the corner pool
+        beq +
+        cmp #OT_LATHE
+        bne ++
++       jsr pool_count
+        cmp #DOC_POOL - NEW_LPTS + 1
         bcc +
         lda #<st_pfull
         ldx #>st_pfull
@@ -1473,22 +1537,29 @@ _fill:
         ldy #O_P+10
         lda add_sizes+2,x
         sta (op),y
+        ldx #0                          ; a prism or lathe: its corners at the pool's end
         lda ca_t
         cmp #OT_PRISM
-        bne +
-        jsr pool_count                  ; a prism: its outline at the pool's end
+        beq +
+        ldx #1
+        cmp #OT_LATHE
+        bne ++
++       stx ca_k
+        jsr pool_count
         ldy #O_PFIRST
         sta (op),y
         iny
-        lda #NEW_CORNERS
+        ldx ca_k
+        lda new_n,x
         sta (op),y
-        lda #<new_outline
+        lda new_lo,x
         sta px_b0
-        lda #>new_outline
+        lda new_hi,x
         sta px_b0+1
+        lda new_n,x
+        tax
         dey
         lda (op),y
-        ldx #NEW_CORNERS
         jsr pool_put_b
 +       lda ob_at
         sta ms_sel
@@ -1501,11 +1572,17 @@ _full:
         jmp say
 ; p0, p1, p2 (whole numbers) for each type
 add_sizes:      .byte 1, 0, 0, 0,  2, 2, 2, 0,  1, 2, 0, 0,  1, 0, 2, 0,  0, 0, 0, 0
-                .byte 1, 0, 0, 0
+                .byte 1, 0, 0, 0,  0, 0, 0, 0
                 .byte 0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0
-; a new prism's outline: a house, 5 corners (x, z)
+; a new prism's outline: a house, 5 corners (x, z); a new lathe's profile: a pawn, 7
+; points (radius, height)
 new_outline:    .dint FX(-1), FX(-1), FX(1), FX(-1), FX(1), FX(0.5), FX(0), FX(1.4), FX(-1), FX(0.5)
-NEW_CORNERS     = 5
+new_profile:    .dint FX(1), FX(0), FX(1), FX(0.25), FX(0.45), FX(0.6), FX(0.3), FX(1.5)
+                .dint FX(0.65), FX(1.7), FX(0.55), FX(2.2), FX(0), FX(2.7)
+NEW_LPTS        = 7
+new_n:          .byte 5, NEW_LPTS
+new_lo:         .byte <new_outline, <new_profile
+new_hi:         .byte >new_outline, >new_profile
 st_added:       .null "Added: give it a place in the views or the panel"
 st_full:        .null "No room for more (32 objects)"
 
@@ -1701,10 +1778,12 @@ _isprism: ; op = object X; Z set if it's a prism
         sta op
         lda obj_hi,x
         sta op+1
-        ldy #O_TYPE
+        ldy #O_TYPE                     ; (or a lathe: corners too)
         lda (op),y
         cmp #OT_PRISM
-        rts
+        beq +
+        cmp #OT_LATHE
++       rts
 st_dup:         .null "Duplicated"
 
 ; Move up / down: an object with no children swaps with its neighbour of the same depth
@@ -1769,7 +1848,7 @@ swap_sel:
         bpl -
         lda ca_e
         sta ms_sel
-        jmp redraw_all
+        jmp redraw_work
 _no:    lda #<st_cantmove
         ldx #>st_cantmove
         jmp say
@@ -1848,132 +1927,13 @@ _go:
         inx
         cpx ca_e
         bne -
-        jmp redraw_all
+        jmp redraw_work
 _no:    lda #<st_cantdepth
         ldx #>st_cantdepth
         jmp say
 _r:     rts
 st_cantdepth:   .null "It can only go into a group just above it, or out of one"
 
-; Material: next / previous (A = 1 / $ff) for the selected object
-cmd_mat:
-        sta cd_dir
-        lda ms_sel
-        cmp #DOC_MAXOBJ
-        bcs _r
-        tax
-        lda obj_lo,x
-        sta op
-        lda obj_hi,x
-        sta op+1
-        ldy #O_MAT
-        clc
-        lda (op),y
-        adc cd_dir
-        bpl +
-        lda doc_nmat                    ; below none: the last
-+       cmp doc_nmat
-        beq +
-        bcc +
-        lda #0
-+       sta (op),y
-        jmp redraw_all
-_r:     rts
-
-; Material: New - a copy of the selected object's (or the first), given to it
-cmd_matnew:
-        lda doc_nmat
-        cmp #DOC_MAXMAT
-        bcs _full
-        sta ca_k
-        inc doc_nmat
-        ldx #0
-        lda ms_sel
-        cmp #DOC_MAXOBJ
-        bcs +
-        tax
-        lda obj_lo,x
-        sta op
-        lda obj_hi,x
-        sta op+1
-        ldy #O_MAT
-        lda (op),y
-        beq +
-        tax
-        dex
-+       lda dmat_lo,x                   ; copy material X to the new one
-        sta pa
-        lda dmat_hi,x
-        sta pa+1
-        ldx ca_k
-        lda dmat_lo,x
-        sta lp
-        lda dmat_hi,x
-        sta lp+1
-        ldy #DMAT_SIZE - 1
--       lda (pa),y
-        sta (lp),y
-        dey
-        bpl -
-        ldy #DM_NAME                    ; named "New N"
-        ldx #0
--       lda st_newmat,x
-        sta (lp),y
-        beq +
-        iny
-        inx
-        bra -
-+       lda ca_k
-        clc
-        adc #'1'
-        dey
-        sta (lp),y
-        lda ms_sel
-        cmp #DOC_MAXOBJ
-        bcs +
-        ldy #O_MAT
-        lda ca_k
-        clc
-        adc #1
-        sta (op),y
-+       lda ca_k
-        ora #$c0
-        sta ms_sel
-        lda #<st_matedit
-        ldx #>st_matedit
-        jmp say
-_full:  lda #<st_mfull
-        ldx #>st_mfull
-        jmp say
-st_newmat:      .null "New ?"
-st_mfull:       .null "No room for more materials (16)"
-st_matedit:     .null "Editing the material: select an object to go back"
-
-; Material: Edit - the selected object's material in the properties panel
-cmd_matedit:
-        lda ms_sel
-        cmp #DOC_MAXOBJ
-        bcs _r
-        tax
-        lda obj_lo,x
-        sta op
-        lda obj_hi,x
-        sta op+1
-        ldy #O_MAT
-        lda (op),y
-        beq _none
-        sec
-        sbc #1
-        ora #$c0
-        sta ms_sel
-        lda #<st_matedit
-        ldx #>st_matedit
-        jmp say
-_none:  lda #<st_nomat
-        ldx #>st_nomat
-        jmp say
-_r:     rts
-st_nomat:       .null "It has no material: Material, Next gives it one"
 
 ;=======================================================================================
 ; the overlay's variables
@@ -2038,11 +1998,13 @@ wstk:           .fill 48 * 10           ;  runs. world_all fills these on every 
 wm:             .fill 48 * DOC_MAXOBJ
         .cerror * > $1600, "the modeller's buffers run into kstream's"
         .endv
+dr_moved:       .byte 0                 ; 1 once a drag has moved (undo kept)
 sb_drag:        .byte 0                 ; 1: the scroll bar's thumb is being dragged
 sb_grab:        .byte 0                 ; where on the thumb it was taken
 sb_top:         .byte 0
 sb_bot:         .byte 0
 wp_k:           .byte 0
+pp_lathe:       .byte 0                 ; pp_setup: 1 for a lathe, 0 a prism
 pt_cur:         .fill 8                 ; the picked corner (x, z), from the pool
 wp_n:           .byte 0
 dl_v:           .fill 12

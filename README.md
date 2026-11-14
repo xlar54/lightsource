@@ -28,7 +28,10 @@ The modeller
 ------------
 
 A 640x200 interface in 256 colours, used with the mouse and keyboard. It starts with
-tinyraytracer's scene as its document.
+`DEFAULT.MDL` from the disk (File, New loads it too): no objects, the camera at the origin
+looking along +z, one light and one white material. Save as `DEFAULT` to change it; without
+the file the same empty scene is built in. Whatever it loads, the document is named
+`SCENE`. tinyraytracer's scene, the old default, is `TINYRAY.MDL`.
 
 - **Views:** top, front and side (orthographic) and the camera's (in perspective), all
   wireframes. The selected object is yellow, and a selected group shows all its parts.
@@ -53,27 +56,35 @@ tinyraytracer's scene as its document.
     after Y: anything not saved is lost).
   - A menu, the Open list and typing on the status line put back what they covered when
     they close (saved in attic), so only commands that change something redraw the views.
-  - **Edit:** Delete, Duplicate.
+  - **Edit:** Undo, Redo (16 steps: every change to the document - adding, deleting,
+    moving, typed values, materials, corners, the show / hide boxes, New and Open - keeps
+    a snapshot in attic first), Delete, Duplicate.
   - **Scene:** Move up and down (inside a Difference this picks what is cut from what),
     Indent (into the group above), Outdent, and World... (the background colour, BgR /
     BgG / BgB, and Trace: POV-Ray's `max_trace_level`). World is also the first entry in
     the list, above the objects.
-  - **Add:** the six primitives, a light, and the four booleans. A new boolean takes the
+  - **Add:** the six primitives, a lathe, a light, and the four booleans. A new boolean takes the
     selected object into itself.
   - **Material:** Next, Previous, New (a copy), Edit (the properties panel then shows the
     material).
-  - **View:** zoom, reset.
+  - **View:** zoom, Locate (the top, front and side views centred on the selection, at
+    the zoom they have), reset.
 - **Prisms** are the shape with points to edit. The selected prism has a handle on each
   corner in the top, front and side views (at its top). Click one to pick it (it fills
   in, and the panel shows its CX and CZ), and drag it to move it. I adds a corner half way
   to the next one, and DEL removes the picked corner. A prism has 3 to 16 corners. All the
   prisms in a document share a pool of 255 corners (in attic RAM), so there can be as many
   as the 32 objects allow. A new one is a house shape, 1 high.
+- **Lathes** are a profile turned about the y axis: points of (radius, height), edited
+  like a prism's corners (handles in the front and side views; the panel shows the picked
+  point's R and Y; I adds a point, DEL removes one). A new one is a pawn. The scene text
+  has it as a `merge` of cones, one for each segment that isn't level, so it is solid
+  (no hollow cups), each segment is a primitive (32 in a scene), and POV-Ray reads it too.
 - **`MEGA65.MDL`** on the disk is an example: the word in prisms (the A's and the 6's holes
   are boxes cut out with a Difference), glass balls, gold cones and a mirror ball. File,
   Open, then click `MEGA65`. It is made by `private/tools/make_mdl.py` (`scenes/mega65.mdl`).
 - **Keys:** `+`/`-` zoom, DEL delete (the picked corner, or the selection), I add a
-  corner, R render, P preview, S save.
+  corner, U (or Ctrl-Z) undo, Y (or Ctrl-Y) redo, L locate, R render, P preview, S save.
 - **Render** writes the document out as scene text, parses it and renders it full screen.
   Press S on the picture to save it as `NAME.IFF`; any other key or a click goes back.
 - **Preview** is quicker: every 4th pixel of every 2nd line, at most one bounce.
