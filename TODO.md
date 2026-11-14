@@ -45,8 +45,7 @@ Modeller: still to do
 - [ ] The mouse on real hardware, and in Xemu by hand (only injected events have been tested).
 - [ ] Dragging an object inside a transformed group moves it in the group's frame, not the
   view's.
-- [ ] The list shows 11 rows and scrolls only to keep the selection in view: add scrolling by
-  hand.
+- [x] The list's scroll bar (page clicks, dragging the thumb; tested in Xemu by injected events).
 - [ ] Undo.
 - [ ] Rotate and scale by dragging (keys or handles).
 - [ ] Editing lights' colours and the background as colours (now three numbers each).

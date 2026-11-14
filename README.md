@@ -39,6 +39,8 @@ tinyraytracer's scene as its document.
   click the box to change it. A hidden group hides its parts (their names go grey), and
   hidden objects can't be picked in the views. Renders and previews still have them.
   It is saved with the document.
+  The scroll bar at the list's right: click above or below the thumb for a page, or drag
+  the thumb. The list only jumps to the selection when the selection changes.
 - **Properties** (bottom right): position, rotation (degrees), scale and sizes, and the
   material. Click a number to type a new one (RETURN takes it, ESC leaves it). Click the
   name to rename the object, or the material to step to the next one.
@@ -51,8 +53,11 @@ tinyraytracer's scene as its document.
     after Y: anything not saved is lost).
   - A menu, the Open list and typing on the status line put back what they covered when
     they close (saved in attic), so only commands that change something redraw the views.
-  - **Edit:** Delete, Duplicate, Move up and down, Indent (into the group above),
-    Outdent.
+  - **Edit:** Delete, Duplicate.
+  - **Scene:** Move up and down (inside a Difference this picks what is cut from what),
+    Indent (into the group above), Outdent, and World... (the background colour, BgR /
+    BgG / BgB, and Trace: POV-Ray's `max_trace_level`). World is also the first entry in
+    the list, above the objects.
   - **Add:** the six primitives, a light, and the four booleans. A new boolean takes the
     selected object into itself.
   - **Material:** Next, Previous, New (a copy), Edit (the properties panel then shows the

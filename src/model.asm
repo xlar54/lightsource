@@ -143,7 +143,7 @@ st_hello:       .null "renderer65 modeller - File: Render to see the scene"
 model_reset:
         lda #1
         sta ms_inited
-        jsr doc_default
+        jsr doc_new                     ; (resident: it is in overlay 5)
         lda #$ff
         sta ms_sel
         jmp views_reset
@@ -176,6 +176,8 @@ model_event:
         bne +
         lda #$ff
         sta ms_drag
+        lda #0
+        sta sb_drag
 +       rts
 _down:
         lda ev_y
@@ -429,7 +431,10 @@ _abs16: ; A:tmp0 = a 16-bit difference -> A = min(255, |it|)
 
 ; dragging: the selection moves with the pointer, in the view's plane
 model_drag:
-        lda ms_drag
+        lda sb_drag                     ; the list's scroll bar
+        beq +
+        jmp sb_drag_move
++       lda ms_drag
         cmp #$ff
         bne +
         rts

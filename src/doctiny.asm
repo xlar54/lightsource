@@ -1,5 +1,5 @@
 ;=======================================================================================
-; doctiny.asm - overlay 4: the default document (tinyraytracer's scene). Only the records
+; doctiny.asm - overlay 5: the default document (tinyraytracer's scene). Only the records
 ; it uses are kept here; doc_default clears the rest.
 ;=======================================================================================
 

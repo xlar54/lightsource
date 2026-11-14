@@ -17,6 +17,8 @@ CMD_UP          = 12
 CMD_DOWN        = 13
 CMD_INDENT      = 14
 CMD_OUTDENT     = 15
+CMD_WORLD       = 16
+SEL_WORLD       = $81                   ; ms_sel: the world settings ($80: the camera)
 CMD_ADDLIGHT    = 19
 CMD_ADD         = 20                    ; + OT_* (20-29)
 CMD_MATNEXT     = 30
@@ -53,6 +55,9 @@ gui_menus:
         .null "Delete  DEL"
         .byte CMD_DUP
         .null "Duplicate"
+        .byte 0
+        .byte 13
+        .null "Scene"
         .byte CMD_UP
         .null "Move up"
         .byte CMD_DOWN
@@ -61,8 +66,10 @@ gui_menus:
         .null "Indent"
         .byte CMD_OUTDENT
         .null "Outdent"
+        .byte CMD_WORLD
+        .null "World..."
         .byte 0
-        .byte 13
+        .byte 20
         .null "Add"
         .byte CMD_ADD + OT_SPHERE
         .null "Sphere"
@@ -87,7 +94,7 @@ gui_menus:
         .byte CMD_ADD + OT_DIFF
         .null "Difference"
         .byte 0
-        .byte 18
+        .byte 25
         .null "Material"
         .byte CMD_MATNEXT
         .null "Next"
@@ -98,7 +105,7 @@ gui_menus:
         .byte CMD_MATEDIT
         .null "Edit"
         .byte 0
-        .byte 28
+        .byte 35
         .null "View"
         .byte CMD_ZOOMIN
         .null "Zoom in     +"
@@ -128,14 +135,19 @@ list_count:                             ; A = entries
         clc
         lda doc_nobj
         adc doc_nlight
-        adc #1
+        adc #2                          ; (the camera, the world)
         rts
-; A = the selection's entry, or $ff
+; A = the selection's entry, or $ff. The entries: the world, the objects, the lights, the
+; camera.
 sel_entry:
         lda ms_sel
-        cmp #$80
+        cmp #SEL_WORLD
         bne +
-        clc
+        lda #0
+        rts
++       cmp #$80
+        bne +
+        sec                             ; the camera: 1 + objects + lights
         lda doc_nobj
         adc doc_nlight
         rts
@@ -145,7 +157,8 @@ sel_entry:
         and #$3f
         clc
         adc doc_nobj
-+       rts
++       inc a
+        rts
 _none:  lda #$ff
         rts
 
@@ -154,19 +167,32 @@ draw_list:
         #GXY LIST_X, 10, 639, 117
         lda #GC_PANEL
         jsr gui_fill
-        ; keep the selection in view
+        ; a new selection: into view
+        lda ms_sel
+        cmp ms_lsel
+        beq _clamp
+        sta ms_lsel
         jsr sel_entry
         cmp #$ff
-        beq +
+        beq _clamp
         cmp ms_lscroll
-        bcs ++
+        bcs +
         sta ms_lscroll
-+       bra _draw
+        bra _clamp
 +       sec
         sbc #LIST_ROWS - 1
-        bcc _draw
+        bcc _clamp
         cmp ms_lscroll
-        bcc _draw
+        bcc _clamp
+        sta ms_lscroll
+_clamp: ; no further down than a full page
+        jsr list_count
+        sec
+        sbc #LIST_ROWS
+        bcs +
+        lda #0
++       cmp ms_lscroll
+        bcs _draw
         sta ms_lscroll
 _draw:
         lda #0
@@ -223,7 +249,11 @@ _row:
         sta d6_bg
         lda #LIST_COL
         sta d6_tc
-        lda dl_e
+        lda dl_e                        ; entry 0: the world; then objects from 0
+        bne +
+        jmp _world
++       dec a
+        sta dl_e
         cmp doc_nobj
         bcs _nobj
         tax                             ; an object: its box, indent, name
@@ -274,6 +304,13 @@ _cam:
         lda #<st_camera
         ldx #>st_camera
         jsr d6_text
+        bra _next
+_world:
+        lda #GC_CYAN
+        sta d6_col
+        lda #<st_world
+        ldx #>st_world
+        jsr d6_text
 _next:
         inc dl_r
         lda dl_r
@@ -281,7 +318,133 @@ _next:
         beq _done
         jmp _row
 _done:
+        ; the scroll bar: a track, and a thumb for the rows shown
+        #GXY SB_X0, SB_Y0, SB_X0 + 6, SB_Y0 + SB_H - 1
+        lda #GC_DARK
+        jsr gui_fill
+        jsr sb_thumb
+        lda sb_top
+        sta d6_y
+        lda sb_bot
+        sta d6_y1
+        lda #<(SB_X0 + 1)
+        sta d6_x
+        lda #<(SB_X0 + 5)
+        sta d6_x1
+        lda #GC_LIGHT
+        jmp gui_fill
+
+SB_X0           = 632                   ; the scroll bar: x 632-638, y 11-116
+SB_Y0           = 11
+SB_H            = 106
+; sb_top / sb_bot = the thumb's first and last y
+sb_thumb:
+        lda ms_lscroll
+        jsr sb_pos
+        sta sb_top
+        clc
+        lda ms_lscroll
+        adc #LIST_ROWS
+        sta tmp0
+        jsr list_count
+        sta tmp1
+        lda tmp0
+        cmp tmp1
+        bcs _all                        ; (all of the rest is shown)
+        jsr sb_pos
+        bra +
+_all:   lda #SB_Y0 + SB_H
++       dec a
+        sta sb_bot
         rts
+; A = SB_Y0 + entry A * SB_H / entries
+sb_pos:
+        sta MULTINA
+        lda #0
+        sta MULTINA+1
+        sta MULTINA+2
+        sta MULTINA+3
+        sta MULTINB+1
+        sta MULTINB+2
+        sta MULTINB+3
+        lda #SB_H
+        sta MULTINB
+        lda MULTOUT                     ; (at most 106 * 51)
+        ldx MULTOUT+1
+        sta MULTINA
+        stx MULTINA+1
+        jsr list_count
+        sta MULTINB
+-       bit DIVBUSY
+        bmi -
+        lda DIVOUT+4
+        clc
+        adc #SB_Y0
+        rts
+
+; a click on the scroll bar: above the thumb a page up, below it a page down, on it a
+; drag (sb_drag_move)
+sb_click:
+        jsr sb_thumb
+        lda ev_y
+        cmp sb_top
+        bcs +
+        sec                             ; a page up
+        lda ms_lscroll
+        sbc #LIST_ROWS - 1
+        bcs ++
+        lda #0
+        bra ++
++       lda sb_bot
+        cmp ev_y
+        bcs _grab
+        clc                             ; a page down (draw_list keeps it in range)
+        lda ms_lscroll
+        adc #LIST_ROWS - 1
++       sta ms_lscroll
+        jmp draw_list
+_grab:  sec
+        lda ev_y
+        sbc sb_top
+        sta sb_grab
+        lda #1
+        sta sb_drag
+        rts
+; the pointer moved while dragging the thumb: scroll to match
+sb_drag_move:
+        sec
+        lda ev_y
+        sbc sb_grab
+        bcc _top
+        sec
+        sbc #SB_Y0
+        bcc _top
+        sta MULTINA                     ; entry = (y - y0) * entries / SB_H
+        lda #0
+        sta MULTINA+1
+        sta MULTINA+2
+        sta MULTINA+3
+        sta MULTINB+1
+        sta MULTINB+2
+        sta MULTINB+3
+        jsr list_count
+        sta MULTINB
+        lda MULTOUT
+        ldx MULTOUT+1
+        sta MULTINA
+        stx MULTINA+1
+        lda #SB_H
+        sta MULTINB
+-       bit DIVBUSY
+        bmi -
+        lda DIVOUT+4
+        bra +
+_top:   lda #0
++       cmp ms_lscroll
+        beq +
+        sta ms_lscroll
+        jmp draw_list
++       rts
 ; the visible box of the object at op, at the left of row dl_y: filled = shown in the
 ; views. (d6_y, the colours and d6_tc are set again for the text after it.)
 vis_box:
@@ -327,11 +490,19 @@ vis_box:
         lda #$ff
         sta d6_bg
         rts
+st_world:       .null "World"
 st_light:       .null "Light "
 st_camera:      .null "Camera"
 
 list_click:
-        lda ev_y
+        lda ev_x+1                      ; the scroll bar?
+        cmp #>(SB_X0 - 1)
+        bcc +
+        lda ev_x
+        cmp #<(SB_X0 - 1)
+        bcc +
+        jmp sb_click
++       lda ev_y
         sec
         sbc #LIST_Y0 - 1
         bcc _r
@@ -351,6 +522,11 @@ list_click:
         cmp dl_e
         bcc _r
         beq _r
+        lda dl_e                        ; entry 0: the world
+        bne +
+        lda #SEL_WORLD
+        bra _set
++       dec dl_e                        ; (then objects from 0)
         lda dl_e                        ; an object's box: shown / hidden
         cmp doc_nobj
         bcs _ent
@@ -379,7 +555,8 @@ _ent:   lda dl_e                        ; the entry -> the selection
         bcs +
         ora #$40
         bra _set
-+       lda #$80
++       sbc doc_nlight                  ; (carry set) 0 the camera, 1 the world
+        ora #$80
 _set:   sta ms_sel
         lda #$ff
         sta ms_ptobj
@@ -399,6 +576,24 @@ PK_MAT          = 2                     ; the object's material: a click takes t
 PK_WORD         = 3                     ; a whole number (a word)
 PK_BIT          = 4                     ; bit 0 of a byte: a click flips it
 PK_TEXT         = 5                     ; just text
+PK_BYTE         = 6                     ; a whole number (a byte)
+
+; gf_v = the word (or byte: kind A = PK_BYTE) at lp, as a whole number
+pk_getw:
+        tax
+        lda #0
+        sta gf_v
+        sta gf_v+1
+        sta gf_v+3
+        ldy #0
+        lda (lp),y
+        sta gf_v+2
+        cpx #PK_BYTE
+        beq +
+        iny
+        lda (lp),y
+        sta gf_v+3
++       rts
 
 ; PF row, column, kind, label, offset from lp
 PF .macro row, col, kind, label, off
@@ -436,6 +631,9 @@ props_build:
 +       cmp #$80
         bne +
         jmp pb_camera
++       cmp #SEL_WORLD
+        bne +
+        jmp pb_world
 +       cmp #$40
         bcc +
         jmp pb_light
@@ -516,9 +714,16 @@ pb_camera:
         #PF 2, PCOL_B, PK_VAL, pl_ly, 16
         #PF 3, PCOL_B, PK_VAL, pl_lz, 20
         #PF 4, PCOL_A, PK_VAL, pl_ang, 24
-        #PF 5, PCOL_A, PK_VAL, pl_bgr, doc_bg - doc_cam_loc
-        #PF 5, PCOL_B, PK_VAL, pl_bgg, doc_bg - doc_cam_loc + 4
-        #PF 6, PCOL_A, PK_VAL, pl_bgb, doc_bg - doc_cam_loc + 8
+        rts
+pb_world:
+        lda #<doc_bg
+        sta lp
+        lda #>doc_bg
+        sta lp+1
+        #PF 1, PCOL_A, PK_VAL, pl_bgr, 0
+        #PF 2, PCOL_A, PK_VAL, pl_bgg, 4
+        #PF 3, PCOL_A, PK_VAL, pl_bgb, 8
+        #PF 1, PCOL_B, PK_BYTE, pl_trace, doc_maxtrace - doc_bg
         rts
 pb_material:
         and #$3f
@@ -574,6 +779,7 @@ pl_ang:         .null "Ang"
 pl_bgr:         .null "BgR"
 pl_bgg:         .null "BgG"
 pl_bgb:         .null "BgB"
+pl_trace:       .null "Trace"
 pl_nosh:        .null "No shadow"
 pl_dif:         .null "Dif"
 pl_pho:         .null "Pho"
@@ -683,17 +889,11 @@ _mat:   tax
 _off:   lda #<st_off
         ldx #>st_off
         rts
-+       cmp #PK_WORD
-        bne +
-        lda #0                          ; a word, shown as a number
-        sta gf_v
-        sta gf_v+1
-        ldy #0
-        lda (lp),y
-        sta gf_v+2
-        iny
-        lda (lp),y
-        sta gf_v+3
++       cmp #PK_WORD                    ; a word or a byte, shown as a number
+        beq +
+        cmp #PK_BYTE
+        bne ++
++       jsr pk_getw
         lda #0
         jsr gui_fmt
         bra _str
@@ -827,16 +1027,10 @@ _done:  jmp redraw_all
 _num:
         ; a number: start from its value
         cmp #PK_WORD
-        bne +
-        lda #0
-        sta gf_v
-        sta gf_v+1
-        ldy #0
-        lda (lp),y
-        sta gf_v+2
-        iny
-        lda (lp),y
-        sta gf_v+3
+        beq +
+        cmp #PK_BYTE
+        bne ++
++       jsr pk_getw
         bra ++
 +       ldy #0
 -       lda (lp),y
@@ -887,13 +1081,15 @@ _num:
         lda pf_adr_hi,x
         sta lp+1
         lda pf_kind,x
+        cmp #PK_BYTE
+        beq _wb
         cmp #PK_WORD
         bne +
-        ldy #0                          ; a word: the whole part
-        lda gf_v+2
-        sta (lp),y
-        iny
+        ldy #1                          ; a word: the whole part
         lda gf_v+3
+        sta (lp),y
+_wb:    ldy #0                          ; (a byte: its low part)
+        lda gf_v+2
         sta (lp),y
         jmp redraw_all
 +       ldy #0
@@ -984,6 +1180,11 @@ model_cmd:
 +       cmp #CMD_EXIT
         bne +
         jmp cmd_exit
++       cmp #CMD_WORLD                  ; the world's settings in the panel
+        bne +
+        lda #SEL_WORLD
+        sta ms_sel
+        jmp redraw_all
 +       ; files and renders: resident code (other overlays)
         lda mc_cmd
         jsr do_command                  ; -> A/X = a message
@@ -1837,6 +2038,10 @@ wstk:           .fill 48 * 10           ;  runs. world_all fills these on every 
 wm:             .fill 48 * DOC_MAXOBJ
         .cerror * > $1600, "the modeller's buffers run into kstream's"
         .endv
+sb_drag:        .byte 0                 ; 1: the scroll bar's thumb is being dragged
+sb_grab:        .byte 0                 ; where on the thumb it was taken
+sb_top:         .byte 0
+sb_bot:         .byte 0
 wp_k:           .byte 0
 pt_cur:         .fill 8                 ; the picked corner (x, z), from the pool
 wp_n:           .byte 0

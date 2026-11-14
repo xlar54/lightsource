@@ -416,7 +416,6 @@ res_image_end:                          ; (the end of what LOAD puts in memory)
         .word 0
         .logical OVL_BASE
         .include "model.asm"
-        .include "doctiny.asm"
         .cerror * > OVL_END, "overlay 4 is too big"
         .endlogical
         .send ovl4
@@ -425,6 +424,7 @@ res_image_end:                          ; (the end of what LOAD puts in memory)
         .word 0
         .logical OVL_BASE
         .include "writer.asm"
+        .include "doctiny.asm"
         .cerror * > OVL_END, "overlay 5 is too big"
         .endlogical
         .send ovl5
