@@ -232,7 +232,8 @@ _down:
         cmp #118
         bcs +
         jmp list_click
-+       jmp prop_click
++       #FAR OVL_PANEL, prop_click
+        rts
 _view:
         jmp view_click
 
@@ -869,7 +870,8 @@ pt_drag:
         lda ev_y
         sta ms_dy
         jsr draw_views
-        jmp draw_props
+        #FAR OVL_PANEL, draw_props
+        rts
 _r:     rts
 
 ; I: a corner after the picked one, half way along the edge to the next

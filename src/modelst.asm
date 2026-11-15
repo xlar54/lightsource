@@ -25,3 +25,6 @@ ms_grid:        .byte 1                 ; 1: the flat views show a grid (View, G
 ms_msg:         .word 0                 ; the status line's message
 ms_name:        .null "SCENE"           ; the document's name (files: NAME.MDL, .POV, .IFF)
                 .fill 9
+; shared by overlays 4 and 6 (the panel shows and edits them)
+pt_cur:         .fill 8                 ; the picked corner (x, z), from the pool
+pk_w:           .fill 12

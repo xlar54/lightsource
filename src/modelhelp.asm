@@ -1,8 +1,8 @@
 ;=======================================================================================
 ; modelhelp.asm - what each property means: the prompt when a value is clicked. These lines
-; are in overlay 4's file past OVL_END, so they are loaded into attic with it but never into
-; the window: help_prompt (modelres.asm) copies the one it needs. Each is 64 bytes; the
-; byte before a field's label (model3.asm) is its line's number, (hp_x - OVL_END) >> 6.
+; are in overlay 6's file past OVL_END, so they are loaded into attic with it but never into
+; the window: help_prompt (modelpanel.asm) copies the one it needs. Each is 64 bytes; the
+; byte before a field's label (modelpanel.asm) is its line's number, (hp_x - OVL_END) >> 6.
 ;=======================================================================================
 
 HELP .macro text

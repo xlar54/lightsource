@@ -84,10 +84,15 @@ Next
     two ends), and the flat views skip the coordinate they don't show.
   - `clip_line` draws at once when both ends are inside; `d6_line` then steps the pixel's
     address instead of clipping and addressing each pixel.
+- [x] Room: the properties panel is overlay 6 (`modelpanel.asm`, with
+  the help lines), reached through `ovl_far`; the grid moved from the resident part into
+  overlay 4. Free now: overlay 4 3,349 bytes (was 39), the resident part 663 (was 91),
+  overlay 6 about 16 KB. Every pixel of the benchmark screens unchanged; tested in Xemu by
+  injected events: a value typed (the help prompt shown), a material click, No shadow, a
+  prism corner's CX after picking it, and a value typed after a preview.
 - [ ] More redraw speed. What's left of a JUGGLER drag step (about 570 ms): transforming the
   points about 160 ms, projecting about 135, clipping and lines about 140, the rest (fills,
-  `world_all`, the list) about 130. Ideas, all short of room (overlay 4 has 39 bytes free,
-  the resident part 91):
+  `world_all`, the list) about 130. Ideas:
   - transform each point once for all four views (now once a view);
   - a flat view's projection folded into the object's matrix (2 multiplies a point fewer);
   - fewer circle segments for objects that are small on screen (changes the picture).

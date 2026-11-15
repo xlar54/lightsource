@@ -205,7 +205,7 @@ program renders `SCENE.POV` from the disk at boot and saves `SCENE.IFF`.
 | `$1600`-`$1EFF` | kstream's KERNAL trampoline |
 | `$2001`-`$7FFF` | The resident part: boot, libraries, the toolkit, the document, the modeller's state and resident commands |
 | `doc_start` (bank 0) | The modeller's document (5,937 bytes) and, while parsing and tracing, the compiled scene tables in the same place: a render parks the document in attic first (`doc_park`, `doc_unpark`) |
-| `$8000`-`$CFFF` | The overlay window (overlays 0-5, copied in from attic) |
+| `$8000`-`$CFFF` | The overlay window (overlays 0-6, copied in from attic; the modeller's 4 and 6 swap through `ovl_far`, which writes the window back first) |
 | `$12000`-`$13F3F` | The screen RAMs (`fcm640`) |
 | `$14000`-`$1EFFF` | The scene file's text while it is parsed (44 KB), and `.MDL` files while they load. While tracing, its top 4,352 bytes hold the primitives' records (`HOT_BUF`) |
 | `$20000`-`$3F3FF` | Framebuffer 1: the final picture |
@@ -218,7 +218,7 @@ program renders `SCENE.POV` from the disk at boot and saves `SCENE.IFF`.
 | `$8320000` | A copy of the resident part as loaded (for RUN after Exit) |
 | `$8330000` | The document while a render has its memory |
 | `$8340000` | Undo: 16 snapshots of 8 KB |
-| `$8700000` | The overlays (64 KB apart) |
+| `$8700000` | The overlays (64 KB apart: overlay n at `$87n0000`). Overlay 6's help lines are in its slot past the window's size (`$8765000`) |
 
 Files on disk are SEQ: `NAME.POV` for scenes and `NAME.IFF` for pictures: an ILBM with 8
 bitplanes, ByteRun1 compression, a 256-colour CMAP, a hi-res CAMG and a BMHD aspect of 8:15,

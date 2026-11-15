@@ -29,7 +29,7 @@ set TASS=.\64tass.exe -C -I src %M65DEFS% src\main.asm
 if errorlevel 1 exit /b 1
 python tools\cut.py target\%PROJECT% 0x1fff
 if errorlevel 1 exit /b 1
-for %%n in (0 1 2 3 4 5) do (
+for %%n in (0 1 2 3 4 5 6) do (
     %TASS% --flat --output-section=ovl%%n -o target\ovl%%n >nul
     if errorlevel 1 (echo overlay %%n failed & exit /b 1)
     python tools\cut.py target\ovl%%n 0x1%%n0000
@@ -54,7 +54,7 @@ for %%f in (..\src\basic\*.bas) do (
     ..\c1541.exe -attach %PROJECT%.d81 -write %%~nf %%~nf >nul
     if errorlevel 1 (echo failed writing %%~nf & cd .. & exit /b 1)
 )
-for %%n in (0 1 2 3 4 5) do (
+for %%n in (0 1 2 3 4 5 6) do (
     ..\c1541.exe -attach %PROJECT%.d81 -write ovl%%n ovl%%n >nul
     if errorlevel 1 (echo failed writing ovl%%n & cd .. & exit /b 1)
 )

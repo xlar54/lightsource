@@ -202,9 +202,16 @@ The limits:
 Architecture
 ------------
 
-One assembly makes the resident program and four overlays. `build.bat` writes each section
+One assembly makes the resident program and seven overlays. `build.bat` writes each section
 to its own file, and `tools/cut.py` trims each one. At boot the overlays are loaded into
 attic; `ovl_load` copies one into the window at `$8000-$CFFF` when it's needed.
+
+The modeller is two overlays, 4 and 6 (the properties panel), that call each other
+through `ovl_far` (`#FAR OVL_PANEL, draw_props`). It writes the window back to attic
+before it copies the other one in, so both keep their variables, and calls can nest; A, X,
+Y and the flags go through. A swap is two 20 KB DMA copies, too quick to measure in a
+redraw. Neither overlay may use the other's labels directly, which the assembler can't see
+(one symbol table): `python private/tools/ovl_check.py` lists any that do.
 
 | Part | Files | What |
 |---|---|---|
@@ -213,9 +220,10 @@ attic; `ovl_load` copies one into the window at `$8000-$CFFF` when it's needed.
 | Overlay 1 | `recolour.asm` | Median-cut palette and Floyd-Steinberg |
 | Overlay 2 | `parse.asm`, `parse2.asm`, `parsev.asm` | The scene language: tokenizer, expressions, objects, transforms, materials, final compile |
 | Overlay 3 | `save.asm` | IFF ILBM files |
-| Overlay 4 | `model.asm`, `model2.asm`, `model3.asm`, `doctiny.asm` | The modeller: views, wireframes, list, properties, commands |
-| Overlay 5 | `writer.asm` | The document as scene text; `.MDL` and `.POV` files; the Open dialog (the disk's directory) |
-| Resident | `gui.asm`, `doc.asm`, `modelst.asm`, `modes.asm` | The toolkit (palette, pointer, events, menus, typing, numbers); the document; the modeller's lasting state; render and file commands |
+| Overlay 4 | `model.asm`, `model2.asm`, `model3.asm`, `model4.asm` | The modeller: views, wireframes, the grid, list, commands, undo |
+| Overlay 5 | `writer.asm`, `doctiny.asm` | The document as scene text; `.MDL` and `.POV` files; the Open dialog (the disk's directory) |
+| Overlay 6 | `modelpanel.asm`, `modelhelp.asm` | The modeller's properties panel; the prompts' help lines (past the window's end in the file: they stay in attic) |
+| Resident | `gui.asm`, `doc.asm`, `modelst.asm`, `modes.asm`, `modelres.asm` | The toolkit (palette, pointer, events, menus, typing, numbers); the document; the modeller's lasting state; render and file commands; the modeller's menus, mouse drags and material commands |
 
 New library modules:
 

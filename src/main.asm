@@ -60,7 +60,16 @@ OVL_PARSE       = 2
 OVL_SAVE        = 3
 OVL_MODEL       = 4
 OVL_WRITE       = 5
-OVL_COUNT       = 6
+OVL_PANEL       = 6                     ; the modeller's properties panel (ovl_far)
+OVL_COUNT       = 7
+        .cerror ((OVL_ATTIC >> 16) & $0f) != 0 || OVL_COUNT > 16, "ovl_swap: overlay n in attic bank n"
+
+; a call into another overlay: A, X, Y and the flags go through both ways (ovl_far)
+FAR     .macro ovl, routine
+        jsr ovl_far
+        .byte \ovl
+        .word \routine
+.endmacro
 MOUSE_MAX_X     = 639
 
 ; ---- where everything goes -----------------------------------------------------------
@@ -79,6 +88,8 @@ MOUSE_MAX_X     = 639
         .dsection ovl4
         * = $150000
         .dsection ovl5
+        * = $160000
+        .dsection ovl6
 
 ;=======================================================================================
 ; the resident part
@@ -377,6 +388,109 @@ ovl_load:
         lda #>(OVL_END - OVL_BASE)
         sta tmp5+1
         jmp dma_copy_far
+
+;---------------------------------------------------------------------------------------
+; ovl_far: jsr ovl_far / .byte overlay / .word routine (the FAR macro) calls the routine
+; in that overlay and comes back to the caller's. ovl_swap writes the window back to attic
+; before it loads the other overlay, so both keep their variables, and calls can nest (the
+; overlay to go back to is on the stack). A, X, Y and the flags go through both ways; the
+; base page is untouched (the DMA jobs are fixed lists).
+;---------------------------------------------------------------------------------------
+ovl_far:
+        sta of_a
+        stx of_x
+        sty of_y
+        pla                             ; the return address - 1: the inline bytes follow
+        sta _rd+1
+        pla
+        sta _rd+2
+        ldx #3
+_rd:    lda $ffff,x                     ; (self-modified)
+        sta of_t-1,x
+        dex
+        bne _rd
+        clc                             ; back past them
+        lda _rd+1
+        adc #3
+        tax
+        lda _rd+2
+        adc #0
+        pha
+        txa
+        pha
+        lda ovl_cur                     ; the caller's overlay, to go back to
+        pha
+        lda of_t+1
+        sta of_j+1
+        lda of_t+2
+        sta of_j+2
+        lda of_t
+        jsr ovl_swap
+        lda of_a
+        ldx of_x
+        ldy of_y
+        jsr of_j
+        php
+        sta of_a
+        stx of_x
+        sty of_y
+        pla
+        sta of_p
+        pla
+        jsr ovl_swap
+        lda of_p
+        pha
+        lda of_a
+        ldx of_x
+        ldy of_y
+        plp
+        rts
+of_j:   jmp $ffff                       ; (self-modified)
+of_t:           .fill 3                 ; the overlay, the routine
+of_a:           .byte 0
+of_x:           .byte 0
+of_y:           .byte 0
+of_p:           .byte 0
+
+; ovl_swap: A = the overlay to have in the window; the one there goes back to attic first
+ovl_swap:
+        cmp ovl_cur
+        beq _r
+        pha
+        lda ovl_cur
+        bmi +                           ; (none)
+        sta os_wbank
+        lda #>os_wjob
+        sta DMA_ADDRMSB
+        lda #<os_wjob
+        sta DMA_ADDRLSB_ETRIG
++       pla
+        sta ovl_cur
+        sta os_lbank
+        lda #>os_ljob
+        sta DMA_ADDRMSB
+        lda #<os_ljob
+        sta DMA_ADDRLSB_ETRIG
+_r:     rts
+os_wjob:        .byte DMAOPT_F018B, DMAOPT_SRC_MB, 0, DMAOPT_DST_MB, OVL_ATTIC >> 20, DMAOPT_END
+                .byte DMACMD_COPY
+                .word OVL_END - OVL_BASE
+                .word OVL_BASE
+                .byte 0
+                .word OVL_ATTIC & $ffff
+os_wbank:       .byte 0                 ; overlay n: attic bank n
+                .byte 0
+                .word 0
+os_ljob:        .byte DMAOPT_F018B, DMAOPT_SRC_MB, OVL_ATTIC >> 20, DMAOPT_DST_MB, 0, DMAOPT_END
+                .byte DMACMD_COPY
+                .word OVL_END - OVL_BASE
+                .word OVL_ATTIC & $ffff
+os_lbank:       .byte 0
+                .word OVL_BASE
+                .byte 0
+                .byte 0
+                .word 0
+
 ovl_cur:        .byte $ff
 ovl_n:          .byte 0
 ovl_name:       .text "OVL0"
@@ -457,8 +571,6 @@ scene_prims_end:
         .include "model.asm"
         .cerror * > OVL_END, "overlay 4 is too big: ", format("$%04x", *)
 ovl4_end:
-        .fill OVL_END - *, 0            ; (the file goes on past the window: help lines that
-        .include "modelhelp.asm"        ;  stay in attic)
         .endlogical
         .send ovl4
 
@@ -470,3 +582,14 @@ ovl4_end:
         .cerror * > OVL_END, "overlay 5 is too big"
         .endlogical
         .send ovl5
+
+        .section ovl6
+        .word 0
+        .logical OVL_BASE
+        .include "modelpanel.asm"
+        .cerror * > OVL_END, "overlay 6 is too big: ", format("$%04x", *)
+ovl6_end:
+        .fill OVL_END - *, 0            ; (the file goes on past the window: help lines that
+        .include "modelhelp.asm"        ;  stay in attic)
+        .endlogical
+        .send ovl6

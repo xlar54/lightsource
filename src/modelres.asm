@@ -286,7 +286,8 @@ _set:
         #ADDQ doc_cam_look+si*4, co_w+si*4, doc_cam_loc+si*4
         .next
         jsr draw_views
-        jmp draw_props
+        #FAR OVL_PANEL, draw_props
+        rts
 _keep:  rts
 ; co_c, co_s = cos, sin of co_a degrees
 co_cs:
@@ -312,210 +313,6 @@ co_c:           .dword 0
 co_s:           .dword 0
 co_t:           .dword 0
 co_k4:          .dword 0
-
-;---------------------------------------------------------------------------------------
-; the grid (View, Grid) in a flat view, under everything else: lines at the multiples of a
-; spacing, the smallest of 0.25, 0.5, 1, 2, 5 .. 100 units that is GR_MINPX pixels or more
-; apart across. Called by draw_view (overlay 4) once project_setup and the clip are done.
-;---------------------------------------------------------------------------------------
-GR_MINPX        = 12
-GR_N            = 9
-view_grid:
-        lda ms_grid
-        beq _r
-        lda #0
-_pick:  sta gr_k                        ; spacing gr_k: s, 1 / s
-        tax
-        ldy #0
--       lda gr_steps,x
-        sta gr_s,y
-        lda gr_inv,x
-        sta gr_i,y
-        inx
-        iny
-        cpy #4
-        bne -
-        #FMUL gr_s, pj_zx, gr_d         ; pixels apart across (the zoom is positive)
-        lda gr_d+3
-        bne _found
-        lda gr_d+2
-        cmp #GR_MINPX
-        bcs _found
-        lda gr_k
-        clc
-        adc #4
-        cmp #GR_N * 4
-        bne _pick
-_r:     rts                             ; (zoomed too far out: no grid)
-_found:
-        lda #GC_GRID
-        sta d6_col
-        lda #0                          ; lines down the view, at x = cx + (w - ca) zx
-        sta gr_up
-        #MOVQ pj_ca, gr_a
-        #MOVQ pj_zx, gr_z
-        #MOVQ pj_cx, gr_c
-        ldx #d6_cx0 - d6_cx0
-        jsr _dir
-        inc gr_up                       ; lines across, at y = cy - (w - cb) zy
-        #MOVQ pj_cb, gr_a
-        #MOVQ pj_zy, gr_z
-        #MOVQ pj_cy, gr_c
-        ldx #d6_cy0 - d6_cx0
-_dir:   ; the edges: gr_lo, gr_hi = d6_cx0 / d6_cx1 or d6_cy0 / d6_cy1
-        lda d6_cx0,x
-        sta gr_lo
-        lda d6_cx0+1,x
-        sta gr_lo+1
-        lda d6_cx1,x
-        sta gr_hi
-        lda d6_cx1+1,x
-        sta gr_hi+1
-        #FMUL gr_s, gr_z, gr_d          ; pixels apart
-        #FMUL gr_a, gr_i, tq            ; the multiple of s nearest the centre: round(a / s) s
-        clc
-        lda tq+1
-        adc #$80
-        lda tq+2
-        adc #0
-        sta tq+2
-        lda tq+3
-        adc #0
-        sta tq+3
-        lda #0
-        sta tq
-        sta tq+1
-        #FMUL tq, gr_s, tq
-        #SUBQ tq, gr_a, tq              ; its line: c +- (w0 - a) z
-        #FMUL tq, gr_z, tq
-        lda gr_up
-        beq +
-        #NEGQ tq, tq
-+       #ADDQ gr_c, tq, gr_p
-        #MOVQ gr_p, gr_q
-_fwd:   jsr _line                       ; that one and those after it, to the far edge
-        jsr _past_hi
-        bmi _back
-        #ADDQ gr_p, gr_d, gr_p
-        bra _fwd
-_back:  #MOVQ gr_q, gr_p                ; those before it, to the near edge
-_bk:    #SUBQ gr_p, gr_d, gr_p
-        lda gr_p+2                      ; p < lo: done
-        cmp gr_lo
-        lda gr_p+3
-        sbc gr_lo+1
-        bmi _r
-        jsr _line
-        bra _bk
-_past_hi:                               ; N set if p > hi
-        lda gr_hi
-        cmp gr_p+2
-        lda gr_hi+1
-        sbc gr_p+3
-        rts
-_line:  ; a line at p (if it's inside)
-        lda gr_p+2
-        cmp gr_lo
-        lda gr_p+3
-        sbc gr_lo+1
-        bmi _no
-        jsr _past_hi
-        bmi _no
-        lda gr_up
-        bne _across
-        lda gr_p+2                      ; down: x = p, the clip's top to bottom
-        sta d6_x
-        lda gr_p+3
-        sta d6_x+1
-        lda d6_cy0
-        sta d6_y
-        lda d6_cy0+1
-        sta d6_y+1
-        lda d6_cy1
-        sta d6_y1
-        lda d6_cy1+1
-        sta d6_y1+1
-        jmp d6_vline
-_across:
-        lda gr_p+2                      ; across: y = p, the clip's left to right
-        sta d6_y
-        lda gr_p+3
-        sta d6_y+1
-        lda d6_cx0
-        sta d6_x
-        lda d6_cx0+1
-        sta d6_x+1
-        lda d6_cx1
-        sta d6_x1
-        lda d6_cx1+1
-        sta d6_x1+1
-        jmp d6_hline
-_no:    rts
-gr_steps:       .dint FX(0.25), FX(0.5), FX(1), FX(2), FX(5), FX(10), FX(20), FX(50), FX(100)
-gr_inv:         .dint FX(4), FX(2), FX(1), FX(0.5), FX(0.2), FX(0.1), FX(0.05), FX(0.02), FX(0.01)
-        .cerror gr_inv - gr_steps != GR_N * 4, "the grid's spacings"
-gr_k:           .byte 0
-gr_up:          .byte 0                 ; 0: lines down the view, 1: across it
-gr_lo:          .word 0                 ; the clip's edges along the lines' spacing
-gr_hi:          .word 0
-gr_s:           .dword 0
-gr_i:           .dword 0
-gr_d:           .dword 0
-gr_a:           .dword 0
-gr_z:           .dword 0
-gr_c:           .dword 0
-gr_p:           .dword 0
-gr_q:           .dword 0
-
-; help_prompt: X = a property field (prop_click) -> A/X = what it means (its help line,
-; modelhelp.asm, copied from overlay 4 in attic: the line's number is the byte before the
-; field's label)
-HP_ATTIC        = OVL_ATTIC + OVL_MODEL * $10000 + (OVL_END - OVL_BASE)
-help_prompt:
-        sec
-        lda pf_lbl_lo,x
-        sbc #1
-        sta txt_ptr
-        lda pf_lbl_hi,x
-        sbc #0
-        sta txt_ptr+1
-        ldy #0
-        lda (txt_ptr),y                 ; n: the line at HP_ATTIC + 64 n
-        tay
-        lsr
-        lsr
-        clc
-        adc #>HP_ATTIC
-        sta dmaj_src+1
-        tya
-        and #3
-        lsr
-        ror
-        ror
-        sta dmaj_src                    ; (HP_ATTIC is page aligned)
-        lda #(HP_ATTIC >> 16) & $0f
-        sta dmaj_src_bank
-        lda #HP_ATTIC >> 20
-        sta dmaj_src_mb
-        lda #<hp_buf
-        sta dmaj_dst
-        lda #>hp_buf
-        sta dmaj_dst+1
-        lda #0
-        sta dmaj_dst_bank
-        sta dmaj_dst_mb
-        sta dmaj_count+1
-        lda #64
-        sta dmaj_count
-        lda #DMACMD_COPY
-        sta dmaj_cmd
-        jsr dma_go
-        lda #<hp_buf
-        ldx #>hp_buf
-        rts
-        .cerror (HP_ATTIC & $ff) != 0, "HP_ATTIC must be page aligned"
-hp_buf:         .fill 64
-
 
 ; Material: next / previous (A = 1 / $ff) for the selected object
 cmd_mat:
@@ -925,7 +722,8 @@ _sput:  #BGTQ dg_t, q_minscale, +       ; (never 0)
         bne -
 _show:
         jsr draw_views
-        jmp draw_props
+        #FAR OVL_PANEL, draw_props
+        rts
 
 ; inside a group: dg_v (a move in the world) into the parent's axes. (wm is from the click:
 ; the parent doesn't move while its child is dragged)
