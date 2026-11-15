@@ -294,6 +294,10 @@ The multiplier's output is live: `MULTOUT` changes as soon as an input does. To 
 ### 64tass
 
 - **Q-register (32-bit) instructions in 64tass 1.60:** `ldq stq adq sbq cpq anq orq eoq btq inq deq`, with zero-page, absolute and indirect forms; there is no indexed Q form. The shifts (`asl/lsr/rol/ror/asr` on Q) have no mnemonic: emit the `$42 $42` prefix and the 8-bit opcode as bytes (`.byte $42,$42,$0a` = ASLQ Q, `$4a` LSRQ, `$43` ASRQ; `$0e lo hi` = ASLQ abs). `aslq` alone assembles as a label. Q loads and arithmetic set N from bit 31; test for zero with `lda v / ora v+1 / ...` to be safe. [Xemu]
+- 64tass's prefix operators `<`, `>` and `` ` `` apply to the whole expression after them:
+  `` #`ADDR & $0f `` is the bank byte of `ADDR & $0f` (0), not the bank's low nibble, and
+  `.cerror <ADDR != 0` tests `<(ADDR != 0)`. Write `#(ADDR >> 16) & $0f` and
+  `(ADDR & $ff) != 0`. A DMA from attic then read `$FF`s from the wrong bank.
 - 64tass emits the 45GS02's 16-bit relative branches by itself when a branch is out of range, and labels inside a `.macro` are local to each expansion: big unrolled macros are fine.
 - Because a `.macro` is a scope of its own, a macro that branches to a label it's given (`BGTQ a, b, _skip`) can't see the caller's `_local` labels ("not defined symbol"). Write those as `.segment` ... `.endsegment`, which works like a macro without a new scope. Anonymous `+`/`-` passed in work either way.
 - `--cbm-prg` only takes 16-bit addresses. Sections at physical `$100000`+ (overlays with `.logical`) need `--flat`, and `--flat --output-section=X` writes from address 0, not from the section's start: cut the front off afterwards (renderer65's `tools/cut.py`).

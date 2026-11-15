@@ -53,6 +53,7 @@ draw_view:
         lda dv_v
         cmp #3
         beq _objs
+        jsr view_grid                   ; (modelres.asm)
         lda #GC_PANEL
         sta d6_col
         #VMOV q_z3, sg_wa

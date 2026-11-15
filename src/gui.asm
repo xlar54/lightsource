@@ -13,7 +13,8 @@
 ;   gui_menu       ev_x = where the bar was clicked: open that menu, track it -> A =
 ;                  command (0 = none)
 ;   gui_edit       A/X = prompt, ge_buf = the text to start from: edit it on the status
-;                  line. Carry clear = RETURN, set = ESC / STOP
+;                  line. Carry clear = RETURN, set = ESC / STOP, or a mouse press (which
+;                  gui_poll then gives again, so the press does what it would have)
 ;   gui_fmt        gf_v (16.16) with A decimals (bit 7 set: drop trailing zeros) ->
 ;                  gf_str (zero-terminated)
 ;   gui_num        ge_buf -> gf_v; carry set if it isn't a number
@@ -45,6 +46,7 @@ GC_CYAN         = 11
 GC_WIRE         = 12
 GC_LIGHT        = 13
 GC_DARK         = 14
+GC_GRID         = 15                    ; the views' grid: between GC_BG and GC_PANEL
 
 MENU_ROW        = 1                     ; the bar's text row (pixels)
 STATUS_Y        = 191
@@ -101,7 +103,13 @@ gui_pointer:
         jmp hws_place
 
 gui_poll:
-        lda #EV_NONE
+        lda gui_again                   ; an event handed back (gui_edit): it again
+        beq +
+        sta ev_type
+        lda #0
+        sta gui_again
+        rts
++       lda #EV_NONE
         sta ev_type
         lda dbg_evp                     ; an injected event?
         cmp dbg_evn
@@ -188,6 +196,7 @@ ev_x:           .word 0
 ev_y:           .byte 0
 ev_key:         .byte 0
 gui_held:       .byte 0
+gui_again:      .byte 0                 ; an event type for gui_poll to give again (0: none)
 gui_lx:         .word 0
 gui_ly:         .byte 0
 dbg_ev:         .fill EV_MAX * 4        ; injected events (tests)
@@ -731,6 +740,10 @@ _wait:
         jsr wait_frame
         jsr gui_poll
         lda ev_type
+        cmp #EV_DOWN                    ; a click elsewhere: cancelled, and the click is
+        beq _click                      ; handed back to be acted on as usual
+        cmp #EV_RDOWN
+        beq _click
         cmp #EV_KEY
         bne _wait
         lda ev_key
@@ -766,6 +779,7 @@ _wait:
         lda #0
         sta ge_buf,x
         bra _draw
+_click: sta gui_again
 _cancel:
         ldx #1
         jsr gui_restore
@@ -1055,9 +1069,9 @@ gf_any:         .byte 0
 ;---------------------------------------------------------------------------------------
 ; the palette: 0-15 the interface's
 ;---------------------------------------------------------------------------------------
-GUIPAL_R = [0, 255, 22, 54, 140, 24, 40, 255, 255, 80, 230, 80, 120, 200, 12]
-GUIPAL_G = [0, 255, 24, 58, 144, 46, 90, 220, 150, 220, 70, 210, 128, 200, 13]
-GUIPAL_B = [0, 255, 30, 68, 156, 120, 200, 60, 40, 100, 70, 230, 140, 210, 16]
+GUIPAL_R = [0, 255, 22, 54, 140, 24, 40, 255, 255, 80, 230, 80, 120, 200, 12, 33]
+GUIPAL_G = [0, 255, 24, 58, 144, 46, 90, 220, 150, 220, 70, 210, 128, 200, 13, 36]
+GUIPAL_B = [0, 255, 30, 68, 156, 120, 200, 60, 40, 100, 70, 230, 140, 210, 16, 45]
 gui_pal_r:      .byte GUIPAL_R, range(256 - len(GUIPAL_R)) * 0
 gui_pal_g:      .byte GUIPAL_G, range(256 - len(GUIPAL_G)) * 0
 gui_pal_b:      .byte GUIPAL_B, range(256 - len(GUIPAL_B)) * 0

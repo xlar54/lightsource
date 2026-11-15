@@ -36,6 +36,7 @@ CMD_CAMFRONT    = 45
 CMD_CAMTOP      = 46
 CMD_CAMSIDE     = 47
 CMD_SNAP        = 48                    ; (also cam_cmd)
+CMD_GRID        = 49                    ; (also cam_cmd)
 
 type_names:     .word tn0, tn1, tn2, tn3, tn4, tn5, tn5b, tn6, tn7, tn8, tn9
 tn0:    .null "Sphere"
@@ -631,7 +632,7 @@ _corner:
         #PF 5, PCOL_B, PK_VAL, pl_cz, 4
 _r:     rts
 _lathe: #PF 5, PCOL_A, PK_VAL, pl_r, 0  ; a lathe's: radius, height
-        #PF 5, PCOL_B, PK_VAL, pl_py, 4
+        #PF 5, PCOL_B, PK_VAL, pl_lpy, 4
         rts
 pb_light:
         and #$3f
@@ -643,9 +644,9 @@ pb_light:
         #PF 1, PCOL_A, PK_VAL, pl_px, DL_POS
         #PF 2, PCOL_A, PK_VAL, pl_py, DL_POS+4
         #PF 3, PCOL_A, PK_VAL, pl_pz, DL_POS+8
-        #PF 1, PCOL_B, PK_VAL, pl_cr, DL_COL
-        #PF 2, PCOL_B, PK_VAL, pl_cg, DL_COL+4
-        #PF 3, PCOL_B, PK_VAL, pl_cb, DL_COL+8
+        #PF 1, PCOL_B, PK_VAL, pl_lr, DL_COL
+        #PF 2, PCOL_B, PK_VAL, pl_lg, DL_COL+4
+        #PF 3, PCOL_B, PK_VAL, pl_lb, DL_COL+8
         #PF 4, PCOL_A, PK_BIT, pl_nosh, DL_FLAGS
         rts
 pb_camera:
@@ -691,52 +692,100 @@ pb_material:
         #PF 5, PCOL_B, PK_VAL, pl_ior, DM_IOR
         #PF 6, PCOL_B, PK_VAL, pl_csz, DM_CSCALE  ; (before the toggle: it takes the rest)
         #PF 6, PCOL_A, PK_BIT, pl_chk, DM_FLAGS
-        #PF 7, PCOL_A, PK_VAL, pl_r2, DM_COL2
+        #PF 7, PCOL_A, PK_VAL, pl_r2c, DM_COL2
         #PF 7, PCOL_B, PK_VAL, pl_g2, DM_COL2+4
         #PF 8, PCOL_A, PK_VAL, pl_b2, DM_COL2+8
         rts
 
 
+; the labels; a number's has its help line's number before it (modelhelp.asm)
 pl_name:        .null "Name "
-pl_px:          .null "X"
-pl_py:          .null "Y"
-pl_pz:          .null "Z"
-pl_rx:          .null "RX"
-pl_ry:          .null "RY"
-pl_rz:          .null "RZ"
-pl_s:           .null "S"
-pl_r:           .null "R"
-pl_r1:          .null "R1"
-pl_r2:          .null "R2"
-pl_g2:          .null "G2"
-pl_b2:          .null "B2"
-pl_h:           .null "H"
-pl_sx:          .null "SX"
-pl_sy:          .null "SY"
-pl_sz:          .null "SZ"
-pl_cx:          .null "CX"
-pl_cz:          .null "CZ"
 pl_mat:         .null "Mat "
-pl_cr:          .null "R"
-pl_cg:          .null "G"
-pl_cb:          .null "B"
-pl_lx:          .null "LX"
-pl_ly:          .null "LY"
-pl_lz:          .null "LZ"
-pl_ang:         .null "Ang"
-pl_bgr:         .null "BgR"
-pl_bgg:         .null "BgG"
-pl_bgb:         .null "BgB"
-pl_trace:       .null "Trace"
 pl_nosh:        .null "No shadow"
-pl_dif:         .null "Dif"
-pl_pho:         .null "Pho"
-pl_psz:         .null "Siz"
-pl_amb:         .null "Amb"
-pl_ref:         .null "Ref"
-pl_trn:         .null "Trn"
-pl_ior:         .null "IOR"
 pl_chk:         .null "Chk"
+        .byte (hp_px - OVL_END) >> 6
+pl_px:          .null "X"
+        .byte (hp_py - OVL_END) >> 6
+pl_py:          .null "Y"
+        .byte (hp_pz - OVL_END) >> 6
+pl_pz:          .null "Z"
+        .byte (hp_rx - OVL_END) >> 6
+pl_rx:          .null "RX"
+        .byte (hp_ry - OVL_END) >> 6
+pl_ry:          .null "RY"
+        .byte (hp_rz - OVL_END) >> 6
+pl_rz:          .null "RZ"
+        .byte (hp_s - OVL_END) >> 6
+pl_s:           .null "S"
+        .byte (hp_r - OVL_END) >> 6
+pl_r:           .null "R"
+        .byte (hp_r1 - OVL_END) >> 6
+pl_r1:          .null "R1"
+        .byte (hp_r2 - OVL_END) >> 6
+pl_r2:          .null "R2"
+        .byte (hp_r2c - OVL_END) >> 6
+pl_r2c:         .null "R2"
+        .byte (hp_g2 - OVL_END) >> 6
+pl_g2:          .null "G2"
+        .byte (hp_b2 - OVL_END) >> 6
+pl_b2:          .null "B2"
+        .byte (hp_h - OVL_END) >> 6
+pl_h:           .null "H"
+        .byte (hp_sx - OVL_END) >> 6
+pl_sx:          .null "SX"
+        .byte (hp_sy - OVL_END) >> 6
+pl_sy:          .null "SY"
+        .byte (hp_sz - OVL_END) >> 6
+pl_sz:          .null "SZ"
+        .byte (hp_cx - OVL_END) >> 6
+pl_cx:          .null "CX"
+        .byte (hp_cz - OVL_END) >> 6
+pl_cz:          .null "CZ"
+        .byte (hp_lpy - OVL_END) >> 6
+pl_lpy:         .null "Y"
+        .byte (hp_lr - OVL_END) >> 6
+pl_lr:          .null "R"
+        .byte (hp_lg - OVL_END) >> 6
+pl_lg:          .null "G"
+        .byte (hp_lb - OVL_END) >> 6
+pl_lb:          .null "B"
+        .byte (hp_cr - OVL_END) >> 6
+pl_cr:          .null "R"
+        .byte (hp_cg - OVL_END) >> 6
+pl_cg:          .null "G"
+        .byte (hp_cb - OVL_END) >> 6
+pl_cb:          .null "B"
+        .byte (hp_lx - OVL_END) >> 6
+pl_lx:          .null "LX"
+        .byte (hp_ly - OVL_END) >> 6
+pl_ly:          .null "LY"
+        .byte (hp_lz - OVL_END) >> 6
+pl_lz:          .null "LZ"
+        .byte (hp_ang - OVL_END) >> 6
+pl_ang:         .null "Ang"
+        .byte (hp_bgr - OVL_END) >> 6
+pl_bgr:         .null "BgR"
+        .byte (hp_bgg - OVL_END) >> 6
+pl_bgg:         .null "BgG"
+        .byte (hp_bgb - OVL_END) >> 6
+pl_bgb:         .null "BgB"
+        .byte (hp_trc - OVL_END) >> 6
+pl_trace:       .null "Trace"
+        .byte (hp_dif - OVL_END) >> 6
+pl_dif:         .null "Dif"
+        .byte (hp_pho - OVL_END) >> 6
+pl_pho:         .null "Pho"
+        .byte (hp_psz - OVL_END) >> 6
+pl_psz:         .null "Siz"
+        .byte (hp_amb - OVL_END) >> 6
+pl_amb:         .null "Amb"
+        .byte (hp_ref - OVL_END) >> 6
+pl_ref:         .null "Ref"
+        .byte (hp_trn - OVL_END) >> 6
+pl_trn:         .null "Trn"
+        .byte (hp_ior - OVL_END) >> 6
+pl_ior:         .null "IOR"
+        .byte (hp_csz - OVL_END) >> 6
 pl_csz:         .null "Sq"
 
 draw_props:
@@ -992,26 +1041,8 @@ _num:
         beq +
         inx
         bra -
-+       ldx pc_f                        ; the prompt: its label and " = "
-        lda pf_lbl_lo,x
-        sta txt_ptr
-        lda pf_lbl_hi,x
-        sta txt_ptr+1
-        ldy #0
--       lda (txt_ptr),y
-        sta pc_prompt,y
-        beq +
-        iny
-        bra -
-+       ldx #0
--       lda st_eq,x
-        sta pc_prompt,y
-        beq +
-        iny
-        inx
-        bra -
-+       lda #<pc_prompt
-        ldx #>pc_prompt
++       ldx pc_f                        ; the prompt: what the field means
+        jsr help_prompt                 ; (modelres.asm)
         jsr gui_edit
         bcs _esc                        ; (ESC: the status line is back as it was)
         jsr gui_num
@@ -1051,7 +1082,6 @@ _wb:    ldy #0                          ; (a byte: its low part)
 +       jmp redraw_work
 _esc:   rts
 st_pname:       .null "Name: "
-st_eq:          .null " = "
 st_notnum:      .null "That isn't a number"
 
 ;=======================================================================================
@@ -1186,8 +1216,8 @@ cmd_changes:
         bcc _no                         ; (World, Undo, Redo)
         cmp #CMD_MATEDIT                ; 19 - 32
         bcc _yes
-        cmp #CMD_SNAP                   ; (Snap changes nothing in the document)
-        beq _no
+        cmp #CMD_SNAP                   ; (Snap and Grid change nothing in the document)
+        bcs _no
         cmp #CMD_AIM                    ; the camera's
         bcs _yes
 _no:    clc
@@ -1996,7 +2026,6 @@ dp_p:           .word 0
 pc_row:         .byte 0
 pc_col:         .byte 0
 pc_f:           .byte 0
-pc_prompt:      .fill 16
 dl_r:           .byte 0
 dl_e:           .byte 0
 dl_y:           .byte 0

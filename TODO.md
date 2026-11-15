@@ -60,9 +60,20 @@ Next
   memory with the compiled scene tables (a render parks it in attic first), which also
   freed about 1 KB. `.MDL` files are version 4 (`private/tools/mdl_v4.py` converts version
   3). Light numbers above 9 show properly in the list.
+- [x] A grid in the flat views (View, Grid; spacing 0.25 .. 100 units by the zoom). It
+  costs about 12 ms a redraw (JUGGLER 1149 -> 1161 ms, the empty default 204 -> 216 ms);
+  `d6_vline` now steps through the framebuffer instead of plotting each pixel. Not in the
+  camera view yet (a floor grid there needs lines clipped at the camera plane).
+- [x] Prompts that explain: clicking a number in the panel asks with what it means
+  ("Ref, reflection: 0 none, 1 a perfect mirror:"). The 42 lines (`src/modelhelp.asm`) ride
+  in overlay 4's file past OVL_END, so they stay in attic and cost the window nothing.
+  Clicking anywhere while a prompt waits cancels it, and the click then acts as usual.
+- [x] `TIE.MDL`: a TIE fighter (37 objects) with a planet and stars on black.
 - [ ] Redraws are slow: JUGGLER.MDL (30 objects) takes 1.1 s for the views, the list and the
   panel, and 1.06 s for the views alone (each step of a drag). `private/tools/bench_redraw.py`
-  measures it.
+  measures it (`--nogrid` turns the grid off first). Even the empty default takes 204 ms,
+  mostly the views' background fills: `d6_fill` is a CPU loop over every pixel, where whole
+  cells (64 contiguous bytes, contiguous along a cell row) could be DMA-filled.
 
 Modeller: still to do
 ---------------------

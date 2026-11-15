@@ -109,7 +109,11 @@ the thumb to move a page, or drag the thumb.
 ## The properties panel
 
 The panel shows the settings of whatever is selected. Click a number to change it: type
-the new value on the status line and press RETURN (or ESC to leave it as it was). Click a
+the new value on the status line and press RETURN (or ESC to leave it as it was). Clicking
+anywhere else also leaves it as it was, and the click then does what it normally would:
+click another number to type that one instead. The
+status line says what the setting means and, where it helps, its usual range or value:
+clicking **Ref** asks "Ref, reflection: 0 none, 1 a perfect mirror:". Click a
 name to rename it. Click **Mat** to step to the next material. Click a yes/no setting to
 change it.
 
@@ -149,6 +153,13 @@ position on whole and half units, angles on multiples of 15 degrees, and the sca
 quarters. Corners of prisms and lathes don't snap.
 
 For exact positions, type them into the **X**, **Y** and **Z** fields instead.
+
+## The grid
+
+The top, front and side views show a grid of faint lines, with the axes through the
+origin drawn brighter. The spacing follows the zoom: 0.25, 0.5, 1, 2, 5, 10, 20, 50 or
+100 units, whichever is the smallest that keeps the lines at least 12 pixels apart. At
+the starting zoom the lines are 2 units apart. **View, Grid** turns it off or on again.
 
 ## Zooming and centring
 
@@ -423,6 +434,8 @@ after loading it, so a plain **Save** never overwrites `DEFAULT.MDL` by accident
 | MEGA65.MDL | The word MEGA65 in prisms, with glass balls, gold cones and a mirror ball |
 | JUGGLER.MDL | A robot juggling three mirror balls over a checker floor |
 | CHESS.MDL | A king, a rook and a knight on a board: lathes, boxes and a prism |
+| CHESSSET.MDL | A whole chess set in its starting position |
+| TIE.MDL | A TIE fighter in space, with a planet and stars on a black background |
 
 ## POV-Ray files
 
@@ -457,7 +470,7 @@ read `.POV` files back.
 | Scene | Move up, Move down, Indent, Outdent, World... |
 | Add | Sphere, Box, Cylinder, Cone, Plane, Prism, Lathe, Light, Union, Merge, Intersection, Difference |
 | Material | Next, Previous, New (a copy), Edit |
-| View | Zoom in, Zoom out, Locate, Reset, Aim camera, Camera front, Camera top, Camera side, Snap |
+| View | Zoom in, Zoom out, Locate, Reset, Aim camera, Camera front, Camera top, Camera side, Snap, Grid |
 
 [SCREENSHOT: menus | The menus, open]
 
@@ -490,3 +503,8 @@ must stay below 32767. Keep the scene within about 120 units of the camera.
 - **Faster renders:** fewer shapes, fewer lights, and less glass and mirror. Hidden objects
   still render, so delete what you don't need.
 - **Checker floors:** a plane with a **Checker** material and **Sq** of 1 to 2 looks good.
+- **Keep the scene within about 150 units of the camera and the lights.** The tracer's
+  numbers can't hold distances much past 180 units, and anything further away comes out
+  garbled. For something far off, like a planet or stars, make it small and bring it in
+  closer: a planet of radius 11 at 75 units looks the same as one of radius 33 at 225.
+  `TIE.MDL` does this.

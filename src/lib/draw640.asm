@@ -227,26 +227,98 @@ _lo:    dec l_d6_n
 _end:   ldz #0
 _out:   rts
 
+; (clipped once, then the address steps: + 8 a row inside a cell, + 5120 - 56 to the next
+; cell row; d6_x, d6_y and d6_y1 are kept)
 d6_vline:
+        lda d6_x                        ; the column must be inside: cx0 <= x <= cx1
+        cmp d6_cx0
+        lda d6_x+1
+        sbc d6_cx0+1
+        bvc +
+        eor #$80
++       bmi _r
+        lda d6_cx1
+        cmp d6_x
+        lda d6_cx1+1
+        sbc d6_x+1
+        bvc +
+        eor #$80
++       bmi _r
+        phy
         lda d6_y
         pha
         lda d6_y+1
         pha
-_l:     jsr d6_plot
-        lda d6_y
+        lda d6_y                        ; from max(y, cy0)
+        cmp d6_cy0
+        lda d6_y+1
+        sbc d6_cy0+1
+        bvc +
+        eor #$80
++       bpl +
+        lda d6_cy0
+        sta d6_y
+        lda d6_cy0+1
+        sta d6_y+1
++       lda d6_y1                       ; to min(y1, cy1): l_d6_dy
+        sta l_d6_dy
+        lda d6_y1+1
+        sta l_d6_dy+1
+        lda d6_cy1
         cmp d6_y1
-        lda d6_y+1
+        lda d6_cy1+1
         sbc d6_y1+1
-        bpl +
-        inc d6_y
-        bne _l
-        inc d6_y+1
-        bra _l
-+       pla
+        bvc +
+        eor #$80
++       bpl +
+        lda d6_cy1
+        sta l_d6_dy
+        lda d6_cy1+1
+        sta l_d6_dy+1
++       sec                             ; pixels - 1 (none if negative)
+        lda l_d6_dy
+        sbc d6_y
+        sta l_d6_n
+        lda l_d6_dy+1
+        sbc d6_y+1
+        bmi _done
+        bne _done                       ; (more than 256: not on this screen)
+        jsr d6_addr
+        ldx l_d6_n
+        inx                             ; X = pixels
+        lda d6_y                        ; Y = rows left in this cell after the first
+        and #7
+        eor #7
+        tay
+        ldz #0
+_pix:   lda d6_col
+        sta [d6_p],z
+        dex
+        beq _done
+        dey
+        bmi _cell
+        lda d6_p                        ; (inside a 64-byte cell: no carry)
+        clc
+        adc #8
+        sta d6_p
+        bra _pix
+_cell:  ldy #7                          ; the next cell row: + 5120 - 56
+        clc
+        lda d6_p
+        adc #<(5120 - 56)
+        sta d6_p
+        lda d6_p+1
+        adc #>(5120 - 56)
+        sta d6_p+1
+        bcc _pix
+        inc d6_p+2
+        bra _pix
+_done:  pla
         sta d6_y+1
         pla
         sta d6_y
-        rts
+        ply
+_r:     rts
 
 d6_fill:
         lda d6_y

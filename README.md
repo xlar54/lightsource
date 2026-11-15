@@ -92,7 +92,9 @@ the file the same empty scene is built in. Whatever it loads, the document is na
   - **View:** zoom, Locate (the top, front and side views centred on the selection, at
     the zoom they have), reset; Aim camera (it looks at the selection); Camera front, top
     and side (it looks at the selection, or where it looked, from that direction, as far
-    away as it was); Snap.
+    away as it was); Snap; Grid (on at the start: lines in the top, front and side views
+    every 0.25, 0.5, 1, 2, 5, 10, 20, 50 or 100 units, the smallest step that leaves 12
+    pixels or more between them at the zoom).
 - **Prisms** are the shape with points to edit. The selected prism has a handle on each
   corner in the top, front and side views (at its top). Click one to pick it (it fills
   in, and the panel shows its CX and CZ), and drag it to move it. I adds a corner half way
@@ -117,6 +119,12 @@ the file the same empty scene is built in. Whatever it loads, the document is na
   three simple shapes (a cone and a ball for a pawn, a cone for a rook, a prism head on a
   base for a knight, which faces the middle of the board so the camera sees it in profile):
   63 objects, 63 primitives. Also from `make_mdl.py`.
+- **`TIE.MDL`**: a TIE fighter in space (made with permission): a ball cockpit with a strutted
+  round window and two guns, hexagonal wings (stood-up prisms: a frame, a dark panel, ribs, a
+  hub) on tapered arms, a blue planet and twelve stars on black. 37 objects; a full render
+  takes about 2 minutes in Xemu. The planet and stars are small and only about 75-90 units
+  away: the tracer's 16.16 numbers overflow once a squared distance passes 32768 (about
+  180 units), so a scene must stay inside that. Also from `make_mdl.py`.
 - **Keys:** `+`/`-` zoom, DEL delete (the picked corner, or the selection), I add a
   corner, U (or Ctrl-Z) undo, Y (or Ctrl-Y) redo, L locate, A aim the camera, G snap, R render, P preview,
   S save.

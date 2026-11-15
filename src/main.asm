@@ -456,6 +456,8 @@ scene_prims_end:
         .logical OVL_BASE
         .include "model.asm"
         .cerror * > OVL_END, "overlay 4 is too big"
+        .fill OVL_END - *, 0            ; (the file goes on past the window: help lines that
+        .include "modelhelp.asm"        ;  stay in attic)
         .endlogical
         .send ovl4
 

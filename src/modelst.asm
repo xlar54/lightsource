@@ -21,6 +21,7 @@ ms_dx:          .word 0
 ms_dy:          .byte 0
 ms_orbit:       .byte 0                 ; 1: dragging in the camera view turns the camera
 ms_snap:        .byte 0                 ; 1: drags snap to the grid (View, Snap)
+ms_grid:        .byte 1                 ; 1: the flat views show a grid (View, Grid)
 ms_msg:         .word 0                 ; the status line's message
 ms_name:        .null "SCENE"           ; the document's name (files: NAME.MDL, .POV, .IFF)
                 .fill 9
