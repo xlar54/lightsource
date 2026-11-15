@@ -103,13 +103,18 @@ E_PRISMPTS      = 43
 E_PRISMH        = 44
 E_PRISMAREA     = 45
 E_PTS           = 46
+E_SPOT          = 47
 
+; The texts sit past OVL_END in this overlay's file (main.asm .dsection parse_text_s), so
+; they stay in attic and cost the window nothing: perr copies the one it needs to pe_msg.
 parse_msgs:
         .word _m0, _m1, _m2, _m3, _m4, _m5, _m6, _m7, _m8, _m9
         .word _m10, _m11, _m12, _m13, _m14, _m15, _m16, _m17, _m18, _m19
         .word _m20, _m21, _m22, _m23, _m24, _m25, _m26, _m27, _m28, _m29
         .word _m30, _m31, _m32, _m33, _m34, _m35, _m36, _m37, _m38, _m39
-        .word _m40, _m41, _m42, _m43, _m44, _m45, _m46
+        .word _m40, _m41, _m42, _m43, _m44, _m45, _m46, _m47
+PE_MSGMAX       = 48                    ; (the longest text and its 0 must fit)
+        .section parse_text_s
 _m0:    .null "unexpected character"
 _m1:    .null "unterminated comment"
 _m2:    .null "number too big"
@@ -157,9 +162,11 @@ _m43:   .null "a prism has 3 to 16 corners"
 _m44:   .null "a prism needs a height"
 _m45:   .null "the prism outline has no area"
 _m46:   .null "too many prism corners (255 in all)"
+_m47:   .null "the spotlight points at itself"
+        .send parse_text_s
 
 ; ---- keywords: KW_x = its position in kw_text ----
-KWLIST = ["camera", "location", "look_at", "sky", "angle", "right", "up", "perspective", "light_source", "shadowless", "background", "global_settings", "max_trace_level", "ambient_light", "assumed_gamma", "sphere", "box", "cylinder", "cone", "plane", "prism", "union", "merge", "intersection", "difference", "object", "open", "texture", "pigment", "finish", "interior", "color", "colour", "rgb", "rgbt", "rgbf", "rgbft", "filter", "transmit", "checker", "translate", "rotate", "scale", "no_shadow", "hollow", "ambient", "diffuse", "phong", "phong_size", "specular", "roughness", "reflection", "ior", "x", "y", "z", "pi", "clock", "sin", "cos", "sqrt", "abs", "radians", "degrees", "linear_sweep", "linear_spline"]
+KWLIST = ["camera", "location", "look_at", "sky", "angle", "right", "up", "perspective", "light_source", "shadowless", "background", "global_settings", "max_trace_level", "ambient_light", "assumed_gamma", "sphere", "box", "cylinder", "cone", "plane", "prism", "union", "merge", "intersection", "difference", "object", "open", "texture", "pigment", "finish", "interior", "color", "colour", "rgb", "rgbt", "rgbf", "rgbft", "filter", "transmit", "checker", "translate", "rotate", "scale", "no_shadow", "hollow", "ambient", "diffuse", "phong", "phong_size", "specular", "roughness", "reflection", "ior", "x", "y", "z", "pi", "clock", "sin", "cos", "sqrt", "abs", "radians", "degrees", "linear_sweep", "linear_spline", "spotlight", "point_at", "radius", "falloff", "tightness"]
 NKW             = len(KWLIST)
 KW_CAMERA       = 0
 KW_LOCATION     = 1
@@ -227,7 +234,12 @@ KW_RADIANS      = 62
 KW_DEGREES      = 63
 KW_LINSWEEP     = 64
 KW_LINSPLINE    = 65
-        .cerror NKW != 66, "keyword numbers"
+KW_SPOTLIGHT    = 66
+KW_POINTAT      = 67
+KW_RADIUS       = 68
+KW_FALLOFF      = 69
+KW_TIGHTNESS    = 70
+        .cerror NKW != 71, "keyword numbers"
 kw_text:
         .for kwi = 0, kwi < NKW, kwi += 1
         .null KWLIST[kwi]
@@ -319,6 +331,31 @@ scene_name:     .null "SCENE.POV,S,R"
 ; error: A = message; back to parse_scene's / parse_text's caller with carry set
 perr:
         sta parse_err
+        asl                             ; its text from attic -> pe_msg
+        tay
+        lda parse_msgs,y
+        sta dmaj_src
+        lda parse_msgs+1,y
+        sec
+        sbc #>OVL_BASE
+        sta dmaj_src+1
+        lda #((OVL_ATTIC + OVL_PARSE * $10000) >> 16) & $0f
+        sta dmaj_src_bank
+        lda #OVL_ATTIC >> 20
+        sta dmaj_src_mb
+        lda #<pe_msg
+        sta dmaj_dst
+        lda #>pe_msg
+        sta dmaj_dst+1
+        lda #0
+        sta dmaj_dst_bank
+        sta dmaj_dst_mb
+        sta dmaj_count+1
+        lda #PE_MSGMAX
+        sta dmaj_count
+        lda #DMACMD_COPY
+        sta dmaj_cmd
+        jsr dma_go
         lda tk_tline
         sta parse_line
         lda tk_tline+1
@@ -1861,18 +1898,58 @@ light_block:
         #LDIMM ONE, lt_col
         #LDIMM ONE, lt_col+4
         #LDIMM ONE, lt_col+8
+        ldx #LIGHT_SIZE - L_FLAGS - 1   ; flags and a spotlight's part: none
         lda #0
-        sta lt_fl
+-       sta lt_fl,x
+        dex
+        bpl -
+        #MOVQ q_zero, lt_pat            ; POV-Ray's defaults: point_at <0, 0, 1>, radius 30,
+        #MOVQ q_zero, lt_pat+4          ; falloff 45, tightness 0
+        #LDIMM ONE, lt_pat+8
+        #LDIMM 30 * ONE, lt_rad
+        #LDIMM 45 * ONE, lt_fall
+        #MOVQ q_zero, lt_tt
 _l:
         lda #'}'
         jsr accept_char
-        bcs _done
-        lda #KW_SHADOWLESS
+        bcc +
+        jmp _done
++       lda #KW_SHADOWLESS
         jsr accept_kw
         bcc +
         lda #LF_SHADOWLESS
-        sta lt_fl
+        tsb lt_fl
         bra _l
++       lda #KW_SPOTLIGHT
+        jsr accept_kw
+        bcc +
+        lda #LF_SPOT
+        tsb lt_fl
+        bra _l
++       lda #KW_POINTAT
+        jsr accept_kw
+        bcc +
+        jsr vector
+        #VMOV v_c, lt_pat
+        bra _l
++       lda #KW_RADIUS
+        jsr accept_kw
+        bcc +
+        jsr number
+        #MOVQ v_c, lt_rad
+        bra _l
++       lda #KW_FALLOFF
+        jsr accept_kw
+        bcc +
+        jsr number
+        #MOVQ v_c, lt_fall
+        bra _l
++       lda #KW_TIGHTNESS
+        jsr accept_kw
+        bcc +
+        jsr number
+        #MOVQ v_c, lt_tt
+        jmp _l
 +       jsr is_colour_kw
         bne +
         jsr colour
@@ -1887,9 +1964,15 @@ _l:
         bcc +
         jsr vector
         #VADD lt_pos, v_c, lt_pos
-        bra _l
+        #VADD lt_pat, v_c, lt_pat       ; (point_at moves with the light)
+        jmp _l
 +       #PERR E_SETTING
 _done:
+        lda lt_fl
+        and #LF_SPOT
+        beq _store
+        jsr lt_spot
+_store:
         ldx sc_nlight
         inc sc_nlight
         lda light_lo,x
@@ -1900,9 +1983,66 @@ _done:
 -       lda lt_pos,y
         sta (lp),y
         iny
-        cpy #25
+        cpy #LIGHT_SIZE
         bne -
         rts
+
+; a spotlight's numbers (pov.py spot_record): the unit vector back from point_at to the
+; light, the cosines of falloff and radius (each 0 to 90, falloff at least radius), 1 / their
+; difference (0 and the same cosine twice for a hard edge), tightness rounded to a whole
+lt_spot:
+        #VSUB lt_pos, lt_pat, vn_a
+        ldx #11
+        lda #0
+-       ora vn_a,x
+        dex
+        bpl -
+        cmp #0
+        bne +
+        #PERR E_SPOT
++       jsr vnorm
+        #VMOV vn_r, lt_back
+        .for ci in [lt_rad, lt_fall]    ; radius and falloff into 0..90
+        bit ci+3
+        bpl +
+        #MOVQ q_zero, ci
++       #LDIMM 90 * ONE, tq
+        #BLEQ ci, tq, +
+        #MOVQ tq, ci
++
+        .next
+        #BLEQ lt_rad, lt_fall, +        ; falloff >= radius
+        #MOVQ lt_rad, lt_fall
++       #MOVQ lt_rad, fs_a
+        jsr fcos_deg
+        stq lt_cosr
+        #MOVQ lt_fall, fs_a
+        jsr fcos_deg
+        stq lt_cosf
+        #SUBQ lt_cosr, lt_cosf, tq
+        #LDIMM SPOT_MIN, tv3
+        #BLTQ tq, tv3, _hard
+        #LDIMM ONE, tv3
+        #FDIV tv3, tq, lt_inv
+        bra _tight
+_hard:  #MOVQ lt_cosf, lt_cosr
+        #MOVQ q_zero, lt_inv
+_tight: lda lt_tt+3                     ; tightness: below 0 is 0, else rounded
+        bmi _t0
+        clc
+        ldq lt_tt
+        adq q_half
+        stq lt_tt
+        lda lt_tt+2
+        sta lt_tight
+        lda lt_tt+3
+        sta lt_tight+1
+        rts
+_t0:    lda #0
+        sta lt_tight
+        sta lt_tight+1
+        rts
+q_half:         .dint ONE / 2
 
 ;=======================================================================================
 ; objects. object: A = 1 at the top level (it becomes a root; a union's parts each do).

@@ -1875,12 +1875,21 @@ _light:
         sta lp
         lda light_hi,x
         sta lp+1
-        ldy #0
+        ldy #0                          ; copy the record (a spotlight's part only if it is one)
+-       lda (lp),y
+        sta li_pos,y
+        iny
+        cpy #L_BACK
+        bne -
+        lda li_fl
+        and #LF_SPOT
+        beq _copied
 -       lda (lp),y
         sta li_pos,y
         iny
         cpy #LIGHT_SIZE
         bne -
+_copied:
         #VSUB li_pos, fr_p, li_v
         #DOT li_v, li_v, tq
         jsr fsqrt
@@ -1889,6 +1898,36 @@ _light:
         #FDIV li_v, sh_dist, ray_d      ; light direction (unit)
         #FDIV li_v+4, sh_dist, ray_d+4
         #FDIV li_v+8, sh_dist, ray_d+8
+        lda li_fl
+        and #LF_SPOT
+        beq _nocone
+        ; a spotlight's cone: nothing past falloff, a smooth step (3 - 2p) p^2 up to radius,
+        ; times cos^tightness (POV-Ray's spotlight)
+        #DOT ray_d, li_back, li_ct
+        #BLEQ li_ct, li_cosf, _next
+        #MOVQ q_one, li_att
+        #BLEQ li_cosr, li_ct, _tight
+        #SUBQ li_ct, li_cosf, tq
+        #FMUL tq, li_inv, tq            ; p = (ct - cos falloff) / (cos radius - cos falloff)
+        #BLEQ tq, q_one, +
+        #MOVQ q_one, tq
++       #FMUL tq, tq, tv                ; p^2
+        #DBLQ tq, tq
+        #SUBQ q_three, tq, tq           ; 3 - 2p
+        #FMUL tv, tq, li_att
+_tight:
+        lda li_tight
+        ora li_tight+1
+        beq _nocone
+        lda li_tight
+        sta pw_e
+        lda li_tight+1
+        sta pw_e+1
+        ldq li_ct
+        jsr ppow
+        stq tq
+        #FMUL li_att, tq, li_att
+_nocone:
         #DOT ray_d, hit_n, li_dt
         bit li_dt+3
         bpl +
@@ -1908,7 +1947,12 @@ _light:
         jsr ppow
         stq li_st
 _nospec:
-        lda li_dt                       ; nothing to add: skip the shadow ray
+        lda li_fl
+        and #LF_SPOT
+        beq +
+        #FMUL li_dt, li_att, li_dt
+        #FMUL li_st, li_att, li_st
++       lda li_dt                       ; nothing to add: skip the shadow ray
         ora li_dt+1
         ora li_dt+2
         ora li_dt+3
@@ -2183,3 +2227,4 @@ tex_job_src:
 q_eps:          .dint EPS
 q_one1:         .dint ONE + 1
 q_zero3:        .dint 0, 0, 0
+q_three:        .dint 3 * ONE

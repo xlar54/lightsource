@@ -149,8 +149,15 @@ li_n:           .byte 0
 li_pos:         .fill 12
 li_col:         .fill 12
 li_fl:          .byte 0
-                .fill 3
-        .cerror * - li_pos != LIGHT_SIZE, "light layout"
+                .byte 0
+li_tight:       .word 0
+li_back:        .fill 12
+li_cosf:        .dword 0
+li_cosr:        .dword 0
+li_inv:         .dword 0
+        .cerror * - li_pos != LIGHT_SIZE || li_back - li_pos != L_BACK, "light layout"
+li_ct:          .dword 0                ; a spotlight: cos of the angle off its axis
+li_att:         .dword 0                ; and how much of its light gets here
 li_v:           .fill 12
 li_r:           .fill 12
 li_di:          .fill 12

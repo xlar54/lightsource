@@ -82,7 +82,48 @@ _light:
         and #1
         beq +
         #WS ws_shadowless
-+       #WS ws_close_nl
++       lda wr_p
+        sta txt_ptr
+        lda wr_p+1
+        sta txt_ptr+1
+        ldy #DL_SPOT                    ; a spotlight: where it aims, its cone
+        lda (txt_ptr),y
+        and #1
+        beq _nospot
+        #WS ws_spot1
+        clc
+        lda wr_p
+        adc #DL_AIM
+        tay
+        lda wr_p+1
+        adc #0
+        tax
+        tya
+        jsr w_vec
+        ldy #0
+_sp:    phy
+        lda ws_spotw_lo,y               ; " radius ", " falloff ", " tightness "
+        ldx ws_spotw_hi,y
+        jsr w_str
+        pla
+        pha
+        asl
+        asl
+        adc #DL_RAD
+        clc
+        adc wr_p
+        tay
+        lda wr_p+1
+        adc #0
+        tax
+        tya
+        jsr w_num
+        ply
+        iny
+        cpy #3
+        bne _sp
+_nospot:
+        #WS ws_close_nl
         inc wr_i
         bra _light
 _mats:  ; each material as a declared texture, M1 ... M16
@@ -792,6 +833,12 @@ ws_cam4:        .text " right x*640/375 }"
 ws_light1:      .null "light_source { "
 ws_light2:      .null " color rgb "
 ws_shadowless:  .null " shadowless"
+ws_spot1:       .null " spotlight point_at "
+ws_spot2:       .null " radius "
+ws_spot3:       .null " falloff "
+ws_spot4:       .null " tightness "
+ws_spotw_lo:    .byte <ws_spot2, <ws_spot3, <ws_spot4
+ws_spotw_hi:    .byte >ws_spot2, >ws_spot3, >ws_spot4
 ws_c:           .null "// "
 ws_decl:        .null "#declare "
 ws_tex:         .null " = texture { pigment { "

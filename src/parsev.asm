@@ -7,6 +7,7 @@ xp              = pd                    ; a transform (48 bytes) in bank 0
 
 parse_err:      .byte 0                 ; results
 parse_line:     .word 0
+pe_msg:         .fill PE_MSGMAX         ; parse_err's text (perr)
 parse_sp:       .byte 0
 
 pv_start:
@@ -62,6 +63,17 @@ cam_angle:      .dword 0
 lt_pos:         .fill 12                ; a light, as its record
 lt_col:         .fill 12
 lt_fl:          .byte 0
+                .byte 0
+lt_tight:       .word 0
+lt_back:        .fill 12
+lt_cosf:        .dword 0
+lt_cosr:        .dword 0
+lt_inv:         .dword 0
+        .cerror * - lt_pos != LIGHT_SIZE || lt_back - lt_pos != L_BACK, "light layout"
+lt_pat:         .fill 12                ; a spotlight as written: point_at, radius, falloff,
+lt_rad:         .dword 0                ; tightness
+lt_fall:        .dword 0
+lt_tt:          .dword 0
 ; objects
 prog_len:       .byte 0
 pr_type:        .byte 0

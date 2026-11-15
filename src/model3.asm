@@ -37,6 +37,8 @@ CMD_CAMTOP      = 46
 CMD_CAMSIDE     = 47
 CMD_SNAP        = 48                    ; (also cam_cmd)
 CMD_GRID        = 49                    ; (also cam_cmd)
+CMD_ADDSPOT     = 35                    ; Add, Spotlight
+CMD_AIMLIGHT    = 50                    ; View, Aim light: the next click says where
 
 type_names:     .word tn0, tn1, tn2, tn3, tn4, tn5, tn5b, tn6, tn7, tn8, tn9
 tn0:    .null "Sphere"
@@ -527,7 +529,15 @@ model_cmd:
         jmp _msg_redraw
 +       cmp #CMD_ADDLIGHT
         bne +
+        lda #0
         jmp cmd_addlight
++       cmp #CMD_ADDSPOT
+        bne +
+        lda #1
+        jmp cmd_addlight
++       cmp #CMD_AIMLIGHT
+        bne +
+        jmp cmd_aimlight
 +       cmp #CMD_ADD
         bcc +
         cmp #CMD_ADD + OT_DIFF + 1
@@ -624,6 +634,8 @@ _msg_redraw:
 cmd_changes:
         lda mc_cmd
         cmp #CMD_NEW
+        beq _yes
+        cmp #CMD_ADDSPOT
         beq _yes
         cmp #CMD_OPEN
         beq _yes
@@ -1078,7 +1090,9 @@ new_hi:         .byte >new_outline, >new_profile
 st_added:       .null "Added: give it a place in the views or the panel"
 st_full:        .null "No room for more (64 objects)"
 
+; A = 1: a spotlight (aimed at the origin, where Add puts things)
 cmd_addlight:
+        sta al_spot
         lda doc_nlight
         cmp #DOC_MAXLIGHT
         bcs _full
@@ -1093,6 +1107,9 @@ cmd_addlight:
         sta (op),y
         dey
         bpl -
+        ldy #DL_SPOT
+        lda al_spot
+        sta (op),y
         txa
         ora #$40
         sta ms_sel
@@ -1104,6 +1121,25 @@ _full:  lda #<st_lfull
         jmp say
 st_lfull:       .null "No room for more lights (16)"
 new_light:      #DLIT (10, 20, -10), (1, 1, 1), 0
+al_spot:        .byte 0
+
+; View, Aim light: a light selected, the next click in a view picks what it aims at
+; (model.asm aim_pick)
+cmd_aimlight:
+        lda ms_sel
+        cmp #$40
+        bcc _no
+        cmp #$40 + DOC_MAXLIGHT
+        bcs _no
+        sta ms_aimfor
+        lda #<st_aimwhat
+        ldx #>st_aimwhat
+        jmp say
+_no:    lda #<st_aimnol
+        ldx #>st_aimnol
+        jmp say
+st_aimwhat:     .null "Aim light: click what it should point at"
+st_aimnol:      .null "Select a light first, then Aim light"
 
 cmd_delete:
         lda ms_sel

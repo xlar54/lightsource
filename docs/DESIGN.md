@@ -39,7 +39,8 @@ Coordinates are POV-Ray's, left-handed: +x right, +y up, +z into the screen.
 global_settings { max_trace_level 4  ambient_light rgb <1, 1, 1> }
 background { color rgb <0.2, 0.7, 0.8> }
 camera { location <0, 0, 0>  look_at <0, 0, 1>  angle 89.13 }
-light_source { <-20, 20, -20>  color rgb <1, 1, 1>  [shadowless] }
+light_source { <-20, 20, -20>  color rgb <1, 1, 1>  [shadowless]  [translate <v>]
+  [spotlight  point_at <v>  radius deg  falloff deg  tightness n] }
 
 sphere   { <x, y, z>, r  modifiers }
 box      { <x1, y1, z1>, <x2, y2, z2>  modifiers }
@@ -91,7 +92,12 @@ below 32767. Keep the scene within about 120 units of the camera.
   transforms. POV-Ray only transforms textures given before the transforms, so the
   modeller always writes the texture first.
 - `checker` is the only pattern. `filter` is treated as `transmit`.
-- `color` on a light is any colour; there is no fall-off, spotlight or area light.
+- `color` on a light is any colour; there is no fall-off with distance and no area light.
+- A spotlight is POV-Ray's (defaults `point_at <0, 0, 1>`, `radius 30`, `falloff 45`,
+  `tightness 0`). Radius and falloff are kept to 0 .. 90 degrees and falloff to at least the
+  radius; `tightness` is rounded to a whole number. `translate` moves `point_at` too (POV-Ray
+  does the same). The modeller writes `spotlight point_at <aim> radius r falloff f
+  tightness t` for a light with Spot on.
 
 ### Lighting
 
@@ -100,6 +106,11 @@ The local colour is tinyraytracer's Phong model, with POV-Ray's names for the we
     colour = pigment * (ambient * ambient_light + diffuse * sum(light * max(0, N.L)))
            + phong * sum(light * max(0, R.V) ^ phong_size)
            + reflection * reflected + transmit * refracted
+
+A spotlight's light is multiplied by its cone factor, as in POV-Ray: with `c` the cosine of
+the angle between the spot's axis and the direction to the point, 0 when `c <= cos(falloff)`,
+1 when `c >= cos(radius)`, else `(3 - 2p) p²` with `p = (c - cos falloff) / (cos radius - cos
+falloff)`; then times `c ^ tightness`. A point outside the cone needs no shadow ray.
 
 `specular s roughness q` is read as `phong s phong_size 1/q`. Each pixel is scaled so its
 brightest channel is at most 255, as in tinyraytracer.
@@ -158,7 +169,10 @@ is. Unions at the top level are flattened into separate roots, because they keep
 inner surfaces. A root's bounding sphere surrounds the box made from its primitives'
 extents (intersections narrow it, a difference keeps the first part's).
 
-**Lights** (up to 16): position, colour, flags (shadowless). **Global:** background,
+**Lights** (52 bytes, up to 16): position, colour, flags (bit 0 shadowless, bit 1 spotlight);
+for a spotlight (zeros otherwise) at 26 the tightness (word), at 28 the unit vector from
+`point_at` to the light, then cos falloff, cos radius and `1 / (cos radius - cos falloff)`
+(0 when they are within 64 / 65536 of each other: a hard edge). **Global:** background,
 camera (position, right, up and forward vectors already scaled for the field of view),
 `max_trace_level`.
 
@@ -217,7 +231,7 @@ program renders `SCENE.POV` from the disk at boot and saves `SCENE.IFF`.
 | `$8310000` | Saved screen areas under menus and dialogs (two 32 KB slots) |
 | `$8320000` | A copy of the resident part as loaded (for RUN after Exit) |
 | `$8330000` | The document while a render has its memory |
-| `$8340000` | Undo: 16 snapshots of 8 KB |
+| `$8340000` | Undo: 16 snapshots of 16 KB (to `$837FFFF`) |
 | `$8700000` | The overlays (64 KB apart: overlay n at `$87n0000`). Overlay 6's help lines are in its slot past the window's size (`$8765000`) |
 
 Files on disk are SEQ: `NAME.POV` for scenes and `NAME.IFF` for pictures: an ILBM with 8

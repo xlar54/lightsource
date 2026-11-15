@@ -1,6 +1,6 @@
 ;=======================================================================================
 ; model4.asm - the modeller's undo and redo: snapshots of the whole document (its bank-0
-; part and the corner pool) in attic, U_N slots of 8 KB in a ring from U_ATTIC.
+; part and the corner pool) in attic, U_N slots of 16 KB in a ring from U_ATTIC.
 ;
 ; The history is a line of snapshots, oldest first: ms_ui of them come before the state
 ; being edited, and ms_un - ms_ui after it (what Redo goes back to). u_save is called
@@ -11,8 +11,9 @@
 
 U_ATTIC         = $8340000
 U_N             = 16
-U_SLOT          = $2000
+U_SLOT          = $4000                 ; (u_slot: 4 to a 64 KB bank)
         .cerror DOC_SIZE + POOL_BYTES > U_SLOT, "an undo slot is too small for the document"
+        .cerror ((U_ATTIC + U_N * U_SLOT - 1) >> 16) > $837, "the undo slots run past $8380000"
 
 ; before a change: the current state is kept (anything to redo is dropped)
 u_save:
@@ -127,16 +128,16 @@ u_slot:
         adc ms_ubase
         and #U_N - 1
         sta tmp0
-        lsr                             ; slot / 8: banks of 64 KB
-        lsr
+        lsr                             ; slot / 4: banks of 64 KB
         lsr
         clc
         adc #(U_ATTIC >> 16) & $ff
         sta u_p+2
         lda #U_ATTIC >> 24
         sta u_p+3
-        lda tmp0                        ; (slot & 7) * $2000
-        and #7
+        lda tmp0                        ; (slot & 3) * $4000
+        and #3
+        asl
         asl
         asl
         asl

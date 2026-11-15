@@ -10,7 +10,7 @@ What works now:
 - **The scene language:** spheres, boxes, cylinders, cones, planes and prisms; `union`, `merge`,
   `intersection` and `difference`; `translate`, `rotate` and `scale`; checker and plain
   pigments; Phong finishes, reflection and refraction with a refractive index for each
-  material; coloured lights, a camera that can turn, and `#declare`. The MEGA65 reads the
+  material; coloured lights and spotlights, a camera that can turn, and `#declare`. The MEGA65 reads the
   file from disk and compiles it.
 - **Rendering** at 640x200 in 256 colours, in two passes:
   1. **Trace.** Every pixel is traced in 16.16 fixed point, with the 24-bit colour kept in
@@ -53,6 +53,8 @@ the file the same empty scene is built in. Whatever it loads, the document is na
 - **Views:** top, front and side (orthographic) and the camera's (in perspective), all
   wireframes. The selected object is yellow, and a selected group shows all its parts.
   Lights are orange crosses; the camera is a green cross with a line to where it looks.
+  A spotlight also has a line to its aim point (a cross: drag it to re-aim the light) and
+  its cone out to there: four lines and a ring at the falloff angle.
 - **Object list** (top right): objects as an outline (a group's parts are indented under
   it), then the lights and the camera. Click one to select it.
   The box at the left of each object shows it in the views (filled) or hides it (empty):
@@ -85,12 +87,15 @@ the file the same empty scene is built in. Whatever it loads, the document is na
     Indent (into the group above), Outdent, and World... (the background colour, BgR /
     BgG / BgB, and Trace: POV-Ray's `max_trace_level`). World is also the first entry in
     the list, above the objects.
-  - **Add:** the six primitives, a lathe, a light, and the four booleans. A new boolean takes the
+  - **Add:** the six primitives, a lathe, a light, a spotlight (aimed at the origin; any
+    light becomes one with Spot in the panel: AX / AY / AZ, Rad, Fal, Tgt), and the four
+    booleans. A new boolean takes the
     selected object into itself, placed where that object was (so nothing moves).
   - **Material:** Next, Previous, New (a copy), Edit (the properties panel then shows the
     material).
   - **View:** zoom, Locate (the top, front and side views centred on the selection, at
-    the zoom they have), reset; Aim camera (it looks at the selection); Camera front, top
+    the zoom they have), reset; Aim camera (it looks at the selection); Aim light... (with
+    a light selected, click what it should aim at: it becomes a spotlight); Camera front, top
     and side (it looks at the selection, or where it looked, from that direction, as far
     away as it was); Snap; Grid (on at the start: lines in the top, front and side views
     every 0.25, 0.5, 1, 2, 5, 10, 20, 50 or 100 units, the smallest step that leaves 12
@@ -119,6 +124,10 @@ the file the same empty scene is built in. Whatever it loads, the document is na
   three simple shapes (a cone and a ball for a pawn, a cone for a rook, a prism head on a
   base for a knight, which faces the middle of the board so the camera sees it in profile):
   63 objects, 63 primitives. Also from `make_mdl.py`.
+- **`DESK.MDL`**: a desk at night: a tower computer, a flat monitor with a glowing screen, a
+  keyboard, a mouse on its pad, and a desk lamp whose spotlight is the only light (the
+  materials' own ambient lets the rest show dimly) on black. 35 objects, 29 primitives.
+  Also from `make_mdl.py` (`python private/tools/make_mdl.py desk`).
 - **`TIE.MDL`**: a TIE fighter in space (made with permission): a ball cockpit with a strutted
   round window and two guns, hexagonal wings (stood-up prisms: a frame, a dark panel, ribs, a
   hub) on tapered arms, a blue planet and twelve stars on black. 37 objects; a full render
@@ -185,8 +194,8 @@ Scenes
 ------
 
 Scenes are text files in the POV-Ray subset described in [docs/DESIGN.md](docs/DESIGN.md);
-[scenes/default.pov](scenes/default.pov) and [scenes/shapes.pov](scenes/shapes.pov) are
-examples. Every file the system accepts is also valid for POV-Ray itself. To frame a scene the
+[scenes/default.pov](scenes/default.pov), [scenes/shapes.pov](scenes/shapes.pov) and
+[scenes/spot.pov](scenes/spot.pov) (spotlights) are examples. Every file the system accepts is also valid for POV-Ray itself. To frame a scene the
 same way there, render at 640x375 with `right x*640/375`.
 
 The limits:
@@ -218,7 +227,7 @@ redraw. Neither overlay may use the other's labels directly, which the assembler
 | Resident | `main.asm`, `scene.asm` | Boot, overlay manager, the compiled scene tables. Library: `system`, `dma`, `loader`, `kstream`, `fcm640`, `fixed`, `fixtrig`, `draw640`, `keyboard`, `mouse`, `hwsprite` |
 | Overlay 0 | `render.asm`, `trace.asm`, `vars.asm` | Render loop and the tracer: intervals for each primitive, booleans, shading |
 | Overlay 1 | `recolour.asm` | Median-cut palette and Floyd-Steinberg |
-| Overlay 2 | `parse.asm`, `parse2.asm`, `parsev.asm` | The scene language: tokenizer, expressions, objects, transforms, materials, final compile |
+| Overlay 2 | `parse.asm`, `parse2.asm`, `parsev.asm` | The scene language: tokenizer, expressions, objects, transforms, materials, final compile; the error messages (past the window's end in the file: they stay in attic) |
 | Overlay 3 | `save.asm` | IFF ILBM files |
 | Overlay 4 | `model.asm`, `model2.asm`, `model3.asm`, `model4.asm` | The modeller: views, wireframes, the grid, list, commands, undo |
 | Overlay 5 | `writer.asm`, `doctiny.asm` | The document as scene text; `.MDL` and `.POV` files; the Open dialog (the disk's directory) |

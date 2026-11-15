@@ -66,6 +66,8 @@ gui_menus:
         .null "Lathe"
         .byte CMD_ADDLIGHT
         .null "Light"
+        .byte CMD_ADDSPOT
+        .null "Spotlight"
         .byte CMD_ADD + OT_UNION
         .null "Union"
         .byte CMD_ADD + OT_MERGE
@@ -98,6 +100,8 @@ gui_menus:
         .null "Reset"
         .byte CMD_AIM
         .null "Aim camera  A"
+        .byte CMD_AIMLIGHT
+        .null "Aim light..."
         .byte CMD_CAMFRONT
         .null "Camera front"
         .byte CMD_CAMTOP

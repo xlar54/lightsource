@@ -90,6 +90,17 @@ Next
   overlay 6 about 16 KB. Every pixel of the benchmark screens unchanged; tested in Xemu by
   injected events: a value typed (the help prompt shown), a material click, No shadow, a
   prism corner's CX after picking it, and a value typed after a preview.
+- [ ] Spotlights (not committed yet).
+  - The scene language, the tracer and the models: `spotlight point_at radius falloff
+    tightness` as in POV-Ray (`scenes/spot.pov`: tables and every pixel match the models).
+    The scene's light record grew to 52 bytes; the parser's error messages moved past
+    overlay 2's window (they stay in attic) to make room.
+  - The modeller: Add, Spotlight; Spot in a light's panel with AX / AY / AZ, Rad, Fal,
+    Tgt; the cone drawn in the views; the aim point dragged; View, Aim light...; the
+    export. `.MDL` version 5 (lights 56 bytes; `private/tools/mdl_v5.py` converts version
+    4); undo slots 16 KB.
+  - Not done: the cone in the camera view when the light is behind the camera (lines with
+    an end behind it are dropped).
 - [ ] More redraw speed. What's left of a JUGGLER drag step (about 570 ms): transforming the
   points about 160 ms, projecting about 135, clipping and lines about 140, the rest (fills,
   `world_all`, the list) about 130. Ideas:
@@ -182,7 +193,7 @@ Scene language
 --------------
 
 - [ ] Named colours (`colors.inc`), `#include`.
-- [ ] Spotlights, area lights.
+- [ ] Area lights (spotlights: done).
 - [ ] `clipped_by`, `inverse`, open cylinders and cones.
 - [ ] A torus (a quartic: hard in 16.16).
 - [ ] More patterns (gradient, bozo needs noise).

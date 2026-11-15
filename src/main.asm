@@ -544,7 +544,10 @@ res_image_end:                          ; (the end of what LOAD puts in memory)
         .word 0
         .logical OVL_BASE
         .include "parse.asm"
-        .cerror * > OVL_END, "overlay 2 is too big"
+        .cerror * > OVL_END, "overlay 2 is too big: ", format("$%04x", *)
+ovl2_end:
+        .fill OVL_END - *, 0            ; (the file goes on past the window: the error
+        .dsection parse_text_s          ;  messages, which stay in attic)
         .endlogical
         .send ovl2
 

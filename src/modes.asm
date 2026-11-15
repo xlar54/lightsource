@@ -294,15 +294,8 @@ _perr:  ; "Scene error, line N: the message" (the text is in overlay 2: copy it 
         lda #' '
         sta dc_msg,x
         inx
-        lda parse_err
-        asl
-        tay
-        lda parse_msgs,y
-        sta txt_ptr
-        lda parse_msgs+1,y
-        sta txt_ptr+1
-        ldy #0
--       lda (txt_ptr),y
+        ldy #0                          ; the message (perr put it in pe_msg)
+-       lda pe_msg,y
         sta dc_msg,x
         beq +
         inx

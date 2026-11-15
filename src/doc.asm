@@ -27,7 +27,8 @@
 ; made the scene text) and the parser then fills the scene tables over it; doc_unpark
 ; puts it back before the modeller runs again.
 ;
-; Version 4 (64 objects, 16 lights). Older files aren't read.
+; Version 5 (64 objects, 16 lights, spotlights). Older files aren't read
+; (private/tools/mdl_v5.py converts version 4).
 ;=======================================================================================
 
 DOC_MAXOBJ      = 64                    ; (ms_sel: objects $00-$3f, lights from $40)
@@ -43,7 +44,7 @@ FAR_SCRATCH     = $1000                 ; (pool_open / pool_close move corners t
 POOL_BYTES      = 8 * DOC_POOL
 OBJ_SIZE        = 64
 DMAT_SIZE       = 80
-DLIGHT_SIZE     = 32
+DLIGHT_SIZE     = 56
 PSLOT_SIZE      = 8 * DOC_MAXPTS        ; one prism's corners
 
 OT_SPHERE       = 0
@@ -89,6 +90,11 @@ DM_IOR          = 64
 DL_POS          = 0
 DL_COL          = 12
 DL_FLAGS        = 24                    ; bit 0 shadowless
+DL_SPOT         = 25                    ; bit 0: a spotlight, with these (kept when it isn't):
+DL_AIM          = 28                    ; the point it aims at,
+DL_RAD          = 40                    ; radius and falloff (degrees), tightness
+DL_FALL         = 44
+DL_TIGHT        = 48
 
 FXV .function v
         .endf [FX(v[0]), FX(v[1]), FX(v[2])]
@@ -112,10 +118,13 @@ DMATR .macro name, c, c2, cs, chk, ps, amb, dif, ph, rf, tr, ior
         .dint FX(\amb), FX(\dif), FX(\ph), FX(\rf), FX(\tr), FX(\ior)
         .fill DMAT_SIZE - 68
 .endmacro
-DLIT .macro pos, c, fl
+; a light: position, colour, flags, spot?, aim (POV-Ray's spot defaults: radius 30,
+; falloff 45, tightness 0)
+DLIT .macro pos, c, fl, spot=0, aim=(0, 0, 0)
         .dint FXV(\pos), FXV(\c)
-        .byte \fl
-        .fill DLIGHT_SIZE - 25
+        .byte \fl, \spot, 0, 0
+        .dint FXV(\aim), FX(30), FX(45), FX(0)
+        .fill DLIGHT_SIZE - 52
 .endmacro
 
 doc_start:
@@ -134,7 +143,7 @@ doc_mats:       .fill DMAT_SIZE * DOC_MAXMAT
 doc_lights:     .fill DLIGHT_SIZE * DOC_MAXLIGHT
 doc_end:
 DOC_SIZE        = doc_end - doc_start   ; (the part in bank 0)
-DOC_VERSION     = 4
+DOC_VERSION     = 5
 DOC_PARK        = $8330000              ; attic: the document while a render has its memory
         .cerror DOC_MAXOBJ > $40, "ms_sel's objects would run into its lights"
 MDL_SIZE        = DOC_SIZE + POOL_BYTES ; a .MDL file

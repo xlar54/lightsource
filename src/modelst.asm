@@ -16,6 +16,9 @@ ms_drag:        .byte $ff               ; the view being dragged in
 ms_dpt:         .byte 0                 ; 1: dragging a prism's corner, not the object
 ms_pt:          .byte 0                 ; the prism corner picked (valid while ms_ptobj
 ms_ptobj:       .byte $ff               ;  is the selection)
+ms_aim:         .byte 0                 ; 1: dragging a spotlight's aim point (till the
+                                        ; button goes up), not the light
+ms_aimfor:      .byte $ff               ; View, Aim light: the light the next click aims
 ms_dview:       .byte 0
 ms_dx:          .word 0
 ms_dy:          .byte 0

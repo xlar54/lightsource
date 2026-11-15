@@ -335,6 +335,32 @@ objects.
 | X, Y, Z | Its position |
 | R, G, B | Its colour and brightness (1, 1, 1 is white) |
 | No shadow | yes: it lights things but casts no shadows |
+| Spot | yes: a spotlight, which lights only a cone (the settings below appear) |
+
+## Spotlights
+
+**Add, Spotlight** adds a light with **Spot** already on, aimed at the origin. Any light
+can become one by clicking **Spot** in its settings. A spotlight's extra settings:
+
+| Field | Meaning |
+|---|---|
+| AX, AY, AZ | The point it aims at |
+| Rad | The cone of full light: degrees from its centre line (30 to start) |
+| Fal | Where the light ends, in degrees (45 to start). Between Rad and Fal it fades out smoothly. Kept to at least Rad and at most 90 |
+| Tgt | Tightness: above 0 the light dims towards the edge of the cone as well (10 is a lot) |
+
+In the views a spotlight is drawn with a line to its aim point, a small cross there, and
+its cone out to that point: four lines from the light and a ring round the aim point,
+square to the line. The ring shows Fal, so a wide cone aimed far away is drawn large:
+zoom out to see it all.
+
+To aim it:
+- **Drag the aim point's cross** in the top, front or side view. The light stays where it
+  is.
+- **View, Aim light...**, with the light selected, then click an object, a light or the
+  camera in a view: the spotlight aims at its centre. Clicking empty space leaves the
+  aim as it was.
+- Type **AX**, **AY** and **AZ** in the panel.
 
 ## The camera
 
@@ -435,6 +461,7 @@ after loading it, so a plain **Save** never overwrites `DEFAULT.MDL` by accident
 | JUGGLER.MDL | A robot juggling three mirror balls over a checker floor |
 | CHESS.MDL | A king, a rook and a knight on a board: lathes, boxes and a prism |
 | CHESSSET.MDL | A whole chess set in its starting position |
+| DESK.MDL | A desk at night: computer, monitor, keyboard and mouse, lit only by a desk lamp's spotlight |
 | TIE.MDL | A TIE fighter in space, with a planet and stars on a black background |
 
 ## POV-Ray files
@@ -468,9 +495,9 @@ read `.POV` files back.
 | File | New, Open..., Save, Save as..., Export POV, Preview, Render, Exit |
 | Edit | Undo, Redo, Delete, Duplicate |
 | Scene | Move up, Move down, Indent, Outdent, World... |
-| Add | Sphere, Box, Cylinder, Cone, Plane, Prism, Lathe, Light, Union, Merge, Intersection, Difference |
+| Add | Sphere, Box, Cylinder, Cone, Plane, Prism, Lathe, Light, Spotlight, Union, Merge, Intersection, Difference |
 | Material | Next, Previous, New (a copy), Edit |
-| View | Zoom in, Zoom out, Locate, Reset, Aim camera, Camera front, Camera top, Camera side, Snap, Grid |
+| View | Zoom in, Zoom out, Locate, Reset, Aim camera, Aim light..., Camera front, Camera top, Camera side, Snap, Grid |
 
 [SCREENSHOT: menus | The menus, open]
 

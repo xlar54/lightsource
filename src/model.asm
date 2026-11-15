@@ -209,6 +209,7 @@ model_event:
         lda #0
         sta sb_drag
         sta ms_orbit
+        sta ms_aim
 +       rts
 _down:
         lda #0
@@ -394,14 +395,10 @@ _obj:
 _lights:
         lda #0
         sta pk_j
--       lda pk_j
+_lnext: lda pk_j
         cmp doc_nlight
         beq _cam
-        tax
-        lda dlight_lo,x
-        sta lp
-        lda dlight_hi,x
-        sta lp+1
+        jsr _lp
         ldy #DL_POS
         ldx #0
 -       lda (lp),y
@@ -414,14 +411,40 @@ _lights:
         ora #$40
         sta pk_i
         jsr pk_try
-        inc pk_j
-        bra --
+        jsr _lp
+        ldy #DL_SPOT                    ; a spotlight's aim point: $60 + the light
+        lda (lp),y
+        and #1
+        beq +
+        ldy #DL_AIM + 11
+        ldx #11
+-       lda (lp),y
+        sta pk_w,x
+        dey
+        dex
+        bpl -
+        lda pk_j
+        ora #$60
+        sta pk_i
+        jsr pk_try
++       inc pk_j
+        bra _lnext
+_lp:    ldx pk_j                        ; lp = light pk_j
+        lda dlight_lo,x
+        sta lp
+        lda dlight_hi,x
+        sta lp+1
+        rts
 _cam:
         #VMOV doc_cam_loc, pk_w
         lda #$80
         sta pk_i
         jsr pk_try
-        lda pk_best
+        lda ms_aimfor                   ; View, Aim light: this click says where
+        cmp #$ff
+        beq +
+        jmp aim_pick
++       lda pk_best
         cmp #$ff
         bne _picked
         lda ms_dview                    ; nothing, in the camera view: turn the camera
@@ -429,6 +452,14 @@ _cam:
         bne +
         jmp cam_orbit_start
 _picked:
+        ldx #0                          ; a spotlight's aim point: the light, its aim dragged
+        cmp #$60
+        bcc +
+        cmp #$70
+        bcs +
+        and #$4f
+        inx
++       stx ms_aim
         sta ms_sel
         lda ms_dview                    ; drag it from here (not in the camera view)
         cmp #3
@@ -441,6 +472,56 @@ _picked:
         lda ev_y
         sta ms_dy
 +       jmp redraw_work
+
+; View, Aim light: the click picked pk_best; light ms_aimfor ($40 + n) becomes a spotlight
+; aimed at its place (an object's origin, a light, the camera)
+aim_pick:
+        lda ms_aimfor
+        sta ap_l
+        sta ms_sel                      ; the light stays selected
+        lda #$ff                        ; (one click only)
+        sta ms_aimfor
+        ldx pk_best
+        cpx #$ff
+        beq _none
+        cpx ms_sel                      ; (not itself)
+        beq _none
+        cpx #$60                        ; (nor an aim point)
+        bcc +
+        cpx #$70
+        bcc _none
++       stx ms_sel
+        jsr sel_world                   ; pk_w = its place
+        lda ap_l
+        sta ms_sel
+        bcc _none
+        jsr u_save
+        lda ms_sel
+        and #$3f
+        tax
+        lda dlight_lo,x
+        sta lp
+        lda dlight_hi,x
+        sta lp+1
+        ldy #DL_AIM + 11
+        ldx #11
+-       lda pk_w,x
+        sta (lp),y
+        dey
+        dex
+        bpl -
+        ldy #DL_SPOT
+        lda #1
+        sta (lp),y
+        lda #<st_aimedl
+        ldx #>st_aimedl
+        jmp say
+_none:  lda #<st_noaiml
+        ldx #>st_noaiml
+        jmp say
+st_aimedl:      .null "The spotlight aims at it"
+st_noaiml:      .null "Aim light: nothing there, nothing changed"
+ap_l:           .byte 0
 
 ; pk_w (world) seen in view ms_dview: if it's nearer the click than pk_bd, pk_i is it
 pk_try:
@@ -565,7 +646,15 @@ sel_pos_ptr:
         sta lp
         lda dlight_hi,x
         sta lp+1
-        sec
+        lda ms_aim                      ; (its aim point, while that's being dragged)
+        beq _lt
+        clc
+        lda lp
+        adc #DL_AIM
+        sta lp
+        bcc _lt
+        inc lp+1
+_lt:    sec
         rts
 +       tax
         clc

@@ -104,6 +104,7 @@ _l:
         sta d6_col
 +
         jsr mark_cross
+        jsr spot_draw
         inc dv_i
         bra _l
 _cam:
@@ -176,6 +177,147 @@ _axis:  ; a line along world axis A, -100 .. 100
         #VMOV q_z3, sg_wb
         rts
 q_z3:           .dint 0, 0, 0
+
+;---------------------------------------------------------------------------------------
+; spot_draw: light dv_i, if it's a spotlight: a cross at its aim point, a line to it, and
+; its cone out to there (falloff): a ring of 16 segments round the aim point, square to
+; the axis, and four lines from the light to the ring. Drawn through wcur, a frame with
+; x and y across the axis, z along it (light -> aim) and its origin at the aim point.
+;---------------------------------------------------------------------------------------
+spot_draw:
+        ldx dv_i
+        lda dlight_lo,x
+        sta lp
+        lda dlight_hi,x
+        sta lp+1
+        ldy #DL_SPOT
+        lda (lp),y
+        and #1
+        bne +
+_r:     rts
++       ldy #DL_POS                     ; its position, aim point and falloff
+        ldx #0
+-       lda (lp),y
+        sta sd_p,x
+        iny
+        inx
+        cpx #12
+        bne -
+        ldy #DL_AIM
+        ldx #0
+-       lda (lp),y
+        sta sd_a,x
+        iny
+        inx
+        cpx #12
+        bne -
+        ldy #DL_FALL
+        ldx #0
+-       lda (lp),y
+        sta sd_t,x
+        iny
+        inx
+        cpx #4
+        bne -
+        #VMOV sd_a, pj_w                ; the aim point: a cross, and the axis
+        jsr mark_cross
+        #VMOV sd_p, sg_wa
+        #VMOV sd_a, sg_wb
+        jsr seg_world
+        #VSUB sd_a, sd_p, sd_w          ; w = the axis, its length L
+        #DOT sd_w, sd_w, tq
+        jsr fsqrt
+        stq sd_l
+        #LDIMM FX(0.05), tq
+        #BLTQ sd_l, tq, _r              ; (it aims at itself, or nearly)
+        .for si = 0, si < 3, si += 1
+        #FDIV sd_w+si*4, sd_l, sd_w+si*4
+        .next
+        ; u across it: y x w = (wz, 0, -wx), or when w is nearly upright x x w = (0, -wz, wy)
+        #ABSQ sd_w+4, tq
+        #LDIMM FX(0.9), tv3m
+        #BLTQ tq, tv3m, _y
+        #MOVQ q_zero, sd_u
+        #NEGQ sd_w+8, sd_u+4
+        #MOVQ sd_w+4, sd_u+8
+        bra _un
+_y:     #MOVQ sd_w+8, sd_u
+        #MOVQ q_zero, sd_u+4
+        #NEGQ sd_w, sd_u+8
+_un:    #DOT sd_u, sd_u, tq
+        jsr fsqrt
+        stq tq
+        .for si = 0, si < 3, si += 1
+        #FDIV sd_u+si*4, tq, sd_u+si*4
+        .next
+        ; v = w x u
+        .for si = 0, si < 3, si += 1    ; v_i = w_j u_k - w_k u_j (j, k the next two)
+        #FMUL sd_w+((si+1)%3)*4, sd_u+((si+2)%3)*4, tq
+        #FMUL sd_w+((si+2)%3)*4, sd_u+((si+1)%3)*4, tv3m
+        #SUBQ tq, tv3m, sd_v+si*4
+        .next
+        .for si = 0, si < 3, si += 1    ; wcur: row i = (u_i, v_i, w_i), then the aim point
+        #MOVQ sd_u+si*4, wcur+si*12
+        #MOVQ sd_v+si*4, wcur+si*12+4
+        #MOVQ sd_w+si*4, wcur+si*12+8
+        #MOVQ sd_a+si*4, wcur+36+si*4
+        .next
+        ; the ring's radius: L tan(falloff), falloff kept to 1 .. 80 degrees
+        #LDIMM FX(1), tq
+        #BLEQ tq, sd_t, +
+        #MOVQ tq, sd_t
++       #LDIMM FX(80), tq
+        #BLEQ sd_t, tq, +
+        #MOVQ tq, sd_t
++       #MOVQ sd_t, fs_a
+        jsr fsin_deg
+        stq sd_r
+        #MOVQ sd_t, fs_a
+        jsr fcos_deg
+        stq tq
+        #FDIV sd_r, tq, sd_r
+        #FMUL sd_r, sd_l, sd_r
+        lda #0                          ; the ring (x-y: across the axis)
+        sta ci_plane
+        #MOVQ sd_r, ci_rr
+        jsr circle_r
+        lda #0                          ; the four edges, from the light: (0, 0, -L)
+        sta sd_k
+_e:     #MOVQ q_zero, sg_a
+        #MOVQ q_zero, sg_a+4
+        #NEGQ sd_l, sg_a+8
+        #VMOV q_z3, sg_b
+        #MOVQ sd_r, tq                  ; edge k: +-r along x (k = 0, 1) or y (2, 3)
+        lda sd_k                        ; (after the MOVQs: ldq loads X and Y too)
+        and #1
+        beq +
+        #NEGQ sd_r, tq
++       lda sd_k
+        and #2
+        asl
+        tay                             ; (Y = 0 or 4: the coordinate)
+        ldx #0
+-       lda tq,x
+        sta sg_b,y
+        iny
+        inx
+        cpx #4
+        bne -
+        jsr seg_local
+        inc sd_k
+        lda sd_k
+        cmp #4
+        bne _e
+        rts
+sd_p:           .fill 12                ; the light,
+sd_a:           .fill 12                ; its aim point,
+sd_w:           .fill 12                ; the frame
+sd_u:           .fill 12
+sd_v:           .fill 12
+sd_l:           .dword 0                ; the axis's length
+sd_t:           .dword 0                ; the falloff angle
+sd_r:           .dword 0                ; the ring's radius
+sd_k:           .byte 0
 
 ; d6_x .. d6_y1 = view X; vw_inner shrinks it by one; vw_clip clips to it
 vw_rect:

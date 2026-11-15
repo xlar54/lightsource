@@ -150,7 +150,18 @@ pb_light:
         #PF 2, PCOL_B, PK_VAL, pl_lg, DL_COL+4
         #PF 3, PCOL_B, PK_VAL, pl_lb, DL_COL+8
         #PF 4, PCOL_A, PK_BIT, pl_nosh, DL_FLAGS
-        rts
+        #PF 5, PCOL_A, PK_BIT, pl_spot, DL_SPOT
+        ldy #DL_SPOT                    ; a spotlight: where it aims, its cone
+        lda (lp),y
+        and #1
+        beq +
+        #PF 6, PCOL_A, PK_VAL, pl_ax, DL_AIM
+        #PF 7, PCOL_A, PK_VAL, pl_ay, DL_AIM+4
+        #PF 8, PCOL_A, PK_VAL, pl_az, DL_AIM+8
+        #PF 6, PCOL_B, PK_VAL, pl_rad, DL_RAD
+        #PF 7, PCOL_B, PK_VAL, pl_fal, DL_FALL
+        #PF 8, PCOL_B, PK_VAL, pl_tgt, DL_TIGHT
++       rts
 pb_camera:
         lda #<doc_cam_loc
         sta lp
@@ -205,6 +216,19 @@ pl_name:        .null "Name "
 pl_mat:         .null "Mat "
 pl_nosh:        .null "No shadow"
 pl_chk:         .null "Chk"
+pl_spot:        .null "Spot"
+        .byte (hp_ax - OVL_END) >> 6
+pl_ax:          .null "AX"
+        .byte (hp_ay - OVL_END) >> 6
+pl_ay:          .null "AY"
+        .byte (hp_az - OVL_END) >> 6
+pl_az:          .null "AZ"
+        .byte (hp_rad - OVL_END) >> 6
+pl_rad:         .null "Rad"
+        .byte (hp_fal - OVL_END) >> 6
+pl_fal:         .null "Fal"
+        .byte (hp_tgt - OVL_END) >> 6
+pl_tgt:         .null "Tgt"
         .byte (hp_px - OVL_END) >> 6
 pl_px:          .null "X"
         .byte (hp_py - OVL_END) >> 6
