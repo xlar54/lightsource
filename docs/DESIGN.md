@@ -201,17 +201,24 @@ program renders `SCENE.POV` from the disk at boot and saves `SCENE.IFF`.
 
 | Area | What |
 |---|---|
-| `$2001`-`$BFFF` | Program, variables and the compiled scene tables |
-| `$0800`, `$C000` | The two 4000-byte screen RAMs (`fcm640`) |
-| `$12000`-`$13F3F` | The modeller's screen RAMs (`fcm640`) |
+| `$0800`-`$15FF` | The parser's work area; while the modeller runs, its world transforms (`wstk`, `wm`) |
+| `$1600`-`$1EFF` | kstream's KERNAL trampoline |
+| `$2001`-`$7FFF` | The resident part: boot, libraries, the toolkit, the document, the modeller's state and resident commands |
+| `doc_start` (bank 0) | The modeller's document (5,937 bytes) and, while parsing and tracing, the compiled scene tables in the same place: a render parks the document in attic first (`doc_park`, `doc_unpark`) |
+| `$8000`-`$CFFF` | The overlay window (overlays 0-5, copied in from attic) |
+| `$12000`-`$13F3F` | The screen RAMs (`fcm640`) |
 | `$14000`-`$1EFFF` | The scene file's text while it is parsed (44 KB), and `.MDL` files while they load. While tracing, its top 4,352 bytes hold the primitives' records (`HOT_BUF`) |
 | `$20000`-`$3F3FF` | Framebuffer 1: the final picture |
 | `$40000`-`$5F3FF` | Framebuffer 0: the preview while rendering; the modeller's screen |
 | `$8000000` | The 24-bit picture (384,000 bytes) |
 | `$8060000` | Recolouring's work areas |
-| `$8300000` | The modeller's corner pool (255 corners), the scene's prism points (`$8300800`), room for moving corners (`$8301000`) |
-| `$8100000`... | Modeller: saved screen areas, undo, the scene being edited |
-| `$8200000`... | Animation frames (128,000 bytes each) |
+| `$8100000` | Recolouring's picture as it is built |
+| `$8300000` | The modeller's corner pool (255 corners), the scene's prism points (`$8300800`), room for moving corners (`$8301000`), the primitive records (`$8302000`) |
+| `$8310000` | Saved screen areas under menus and dialogs (two 32 KB slots) |
+| `$8320000` | A copy of the resident part as loaded (for RUN after Exit) |
+| `$8330000` | The document while a render has its memory |
+| `$8340000` | Undo: 16 snapshots of 8 KB |
+| `$8700000` | The overlays (64 KB apart) |
 
 Files on disk are SEQ: `NAME.POV` for scenes and `NAME.IFF` for pictures: an ILBM with 8
 bitplanes, ByteRun1 compression, a 256-colour CMAP, a hi-res CAMG and a BMHD aspect of 8:15,

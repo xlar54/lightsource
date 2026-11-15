@@ -22,12 +22,17 @@
 ; pool_count places, each prism's together. A .MDL file is doc_start .. doc_end, then the
 ; whole pool.
 ;
-; Version 3 (prisms and the corner pool). Older files aren't read.
+; The document shares its memory with the compiled scene (scene.asm): they are never
+; needed at once. A render parks the document in attic (doc_park, once the writer has
+; made the scene text) and the parser then fills the scene tables over it; doc_unpark
+; puts it back before the modeller runs again.
+;
+; Version 4 (64 objects, 16 lights). Older files aren't read.
 ;=======================================================================================
 
-DOC_MAXOBJ      = 32
+DOC_MAXOBJ      = 64                    ; (ms_sel: objects $00-$3f, lights from $40)
 DOC_MAXMAT      = 16
-DOC_MAXLIGHT    = 8
+DOC_MAXLIGHT    = 16
 DOC_MAXPTS      = 16                    ; corners in one prism
 DOC_POOL        = 255                   ; corners in all
 FAR_ADDR        = $8300000              ; attic: the corner pool, the scene's points, and
@@ -115,7 +120,7 @@ DLIT .macro pos, c, fl
 
 doc_start:
 doc_magic:      .text "R65M"
-doc_version:    .byte 3
+doc_version:    .byte DOC_VERSION
 doc_nobj:       .byte 0
 doc_nmat:       .byte 0
 doc_nlight:     .byte 0
@@ -129,6 +134,9 @@ doc_mats:       .fill DMAT_SIZE * DOC_MAXMAT
 doc_lights:     .fill DLIGHT_SIZE * DOC_MAXLIGHT
 doc_end:
 DOC_SIZE        = doc_end - doc_start   ; (the part in bank 0)
+DOC_VERSION     = 4
+DOC_PARK        = $8330000              ; attic: the document while a render has its memory
+        .cerror DOC_MAXOBJ > $40, "ms_sel's objects would run into its lights"
 MDL_SIZE        = DOC_SIZE + POOL_BYTES ; a .MDL file
         .cerror DOC_PTS + POOL_BYTES > SC_PTS, "the corner pool runs into the scene's points"
         .cerror SC_PTS + 8 * MAX_PTS > FAR_SCRATCH, "the scene's points run into the scratch area"
@@ -141,6 +149,43 @@ dmat_lo:        .byte <(doc_mats + range(DOC_MAXMAT) * DMAT_SIZE)
 dmat_hi:        .byte >(doc_mats + range(DOC_MAXMAT) * DMAT_SIZE)
 dlight_lo:      .byte <(doc_lights + range(DOC_MAXLIGHT) * DLIGHT_SIZE)
 dlight_hi:      .byte >(doc_lights + range(DOC_MAXLIGHT) * DLIGHT_SIZE)
+
+; doc_park: the document to attic (DOC_PARK), before the scene tables are made over it;
+; doc_unpark: back again
+doc_park:
+        jsr dpk_ptrs
+        jmp dma_copy_far
+doc_unpark:
+        jsr dpk_ptrs
+        ldx #3
+-       lda ptr1,x
+        ldy ptr2,x
+        sta ptr2,x
+        sty ptr1,x
+        dex
+        bpl -
+        jmp dma_copy_far
+dpk_ptrs:
+        lda #<doc_start
+        sta ptr1
+        lda #>doc_start
+        sta ptr1+1
+        lda #0
+        sta ptr1+2
+        sta ptr1+3
+        lda #<DOC_PARK
+        sta ptr2
+        lda #>DOC_PARK
+        sta ptr2+1
+        lda #(DOC_PARK >> 16) & $ff
+        sta ptr2+2
+        lda #DOC_PARK >> 24
+        sta ptr2+3
+        lda #<DOC_SIZE
+        sta tmp5
+        lda #>DOC_SIZE
+        sta tmp5+1
+        rts
 
 pt_buf:         .fill PSLOT_SIZE + 8    ; one prism's corners in bank 0 (+ 1: closed)
 

@@ -132,6 +132,35 @@ model_main:
         sta done
 _loop:
         jsr wait_frame
+        .if DBG_BENCH
+        lda dbg_bench                   ; (tests: 1 = time 16 redraw_work, 2 = 16 draw_views)
+        beq _nob
+        lda ticks
+        sta dbg_btime
+        lda ticks+1
+        sta dbg_btime+1
+        lda #16
+        sta dbg_bn
+-       lda dbg_bench
+        cmp #1
+        bne +
+        jsr redraw_work
+        bra ++
++       jsr world_all
+        jsr draw_views
++       dec dbg_bn
+        bne -
+        sec
+        lda ticks
+        sbc dbg_btime
+        sta dbg_btime
+        lda ticks+1
+        sbc dbg_btime+1
+        sta dbg_btime+1
+        lda #0
+        sta dbg_bench
+_nob:
+        .endif
         jsr gui_poll
         lda ev_type
         beq _loop
@@ -156,8 +185,9 @@ views_reset:
         lda #0
         sta ms_lscroll
         rts
-; per ortho view: zoom (pixels a unit), the world point at its centre (across, up)
-vw_default:     .dint FX(5), FX(0), FX(16), FX(5), FX(0), FX(0), FX(5), FX(16), FX(0)
+; per ortho view: zoom (pixels a unit), the world point at its centre (across, up): the
+; origin, where Add puts things
+vw_default:     .dint FX(10), FX(0), FX(0), FX(10), FX(0), FX(0), FX(10), FX(0), FX(0)
 
 ;=======================================================================================
 ; events
@@ -250,6 +280,10 @@ _ins:   jsr pt_valid
 +       cmp #'a'
         bne +
         lda #CMD_AIM
+        jmp model_cmd
++       cmp #'g'
+        bne +
+        lda #CMD_SNAP
         jmp model_cmd
 +       cmp #'u'
         beq _undo
@@ -469,7 +503,10 @@ model_drag:
         cmp #$ff
         bne +
         rts
-+       lda dr_moved                    ; its first move: undo can go back to before it
++       lda ms_dpt                      ; the selection itself (resident: modelres.asm)
+        bne +
+        jmp drag_obj
++       lda dr_moved                    ; a prism's corner: its first move keeps an undo
         bne +
         inc dr_moved
         jsr u_save
@@ -503,47 +540,7 @@ model_drag:
         #FDIV dr_a, tq, dr_a
         #FMUL tq, q_aspect, tv3m
         #FDIV dr_b, tv3m, dr_b
-        lda ms_dpt
-        beq +
         jmp pt_drag
-+       ldx ms_drag
-        lda vw_ha,x
-        asl
-        asl
-        tay
-        jsr _add_a
-        ldx ms_drag
-        lda vw_va,x
-        asl
-        asl
-        tay
-        jsr _add_b
-        lda ev_x
-        sta ms_dx
-        lda ev_x+1
-        sta ms_dx+1
-        lda ev_y
-        sta ms_dy
-        jsr draw_views
-        jmp draw_props
-_add_a: ; the position's part at Y += dr_a (unrolled: a compare would break the carry)
-        clc
-        .for si = 0, si < 4, si += 1
-        lda (lp),y
-        adc dr_a+si
-        sta (lp),y
-        iny
-        .next
-        rts
-_add_b:
-        clc
-        .for si = 0, si < 4, si += 1
-        lda (lp),y
-        adc dr_b+si
-        sta (lp),y
-        iny
-        .next
-        rts
 q_aspect:       .dint FX(8.0 / 15.0)
 
 ; lp = the position of the selection; carry clear if nothing is selected

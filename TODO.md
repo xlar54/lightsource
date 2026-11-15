@@ -50,6 +50,20 @@ Next
 - [x] Camera tools: Aim camera (A), Camera front / top / side, and turning the camera by
   dragging in the camera view.
 
+- [x] Shaping with the mouse: SHIFT-drag turns, CTRL-drag scales, View, Snap (G); drags
+  inside turned or scaled groups follow the pointer; a new group goes where the object it
+  takes in was (it used to move it by (0, 0, 12)).
+- [x] Blender-like start: the default camera up and back at (7, 5.5, -9) looking down at the
+  origin, new objects at the origin, the views centred there at 10 pixels a unit.
+
+- [x] 64 objects and 16 lights in a document (was 32 and 8). The document shares its bank-0
+  memory with the compiled scene tables (a render parks it in attic first), which also
+  freed about 1 KB. `.MDL` files are version 4 (`private/tools/mdl_v4.py` converts version
+  3). Light numbers above 9 show properly in the list.
+- [ ] Redraws are slow: JUGGLER.MDL (30 objects) takes 1.1 s for the views, the list and the
+  panel, and 1.06 s for the views alone (each step of a drag). `private/tools/bench_redraw.py`
+  measures it.
+
 Modeller: still to do
 ---------------------
 

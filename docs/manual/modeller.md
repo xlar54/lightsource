@@ -27,7 +27,8 @@ Insert or mount the renderer65 disk and turn the MEGA65 on. The disk starts itse
 `READY.` prompt.
 
 The modeller opens with `DEFAULT.MDL`: an empty scene with a camera, one light and one
-white material. If that file isn't on the disk, the same empty scene is built in.
+white material. The camera is up and back at (7, 5.5, -9), looking down at the origin,
+which is where new objects go and where the views are centred. If that file isn't on the disk, the same empty scene is built in.
 
 ## What you need
 
@@ -37,7 +38,7 @@ white material. If that file isn't on the disk, the same empty scene is built in
 
 ## A first scene in five steps
 
-1. Choose **Add, Sphere**. A sphere appears in front of the camera and is selected.
+1. Choose **Add, Sphere**. A sphere appears at the origin, in the middle of the views, and is selected.
 2. Choose **Add, Plane** to add a floor, then type `-1` into its **Y** field in the
    properties panel, so the floor sits under the sphere.
 3. Click the sphere in the object list, then click **Mat** in the properties panel until
@@ -129,8 +130,23 @@ few pixels is selected. You can also click names in the object list.
 ## Moving things
 
 Drag the selected object, light or camera in the top, front or side view: it moves in that
-view's plane. (In the camera view a drag turns the camera instead: see below.) Each drag
-can be undone as one step.
+view's plane. Inside a group that is turned or scaled, it still follows the pointer. (In the
+camera view a drag turns the camera instead: see below.) Each drag can be undone as one
+step.
+
+## Turning and sizing with the mouse
+
+Hold a key as you start dragging an object in the top, front or side view:
+
+- **SHIFT:** it turns about the axis that view looks along: RY in the top view, RZ in the
+  front view, RX in the side view, a degree for each pixel across.
+- **CTRL:** its scale S changes, by 1/64 of itself for each pixel across (right is bigger).
+
+## Snapping to the grid
+
+**View, Snap** (or **G**) turns snapping on or off. While it is on, a drag puts the
+position on whole and half units, angles on multiples of 15 degrees, and the scale on
+quarters. Corners of prisms and lathes don't snap.
 
 For exact positions, type them into the **X**, **Y** and **Z** fields instead.
 
@@ -162,8 +178,8 @@ All of these can be undone.
 
 ## Adding objects
 
-Choose a shape from the **Add** menu. A new object is placed 12 units in front of the
-camera's starting position, gets the first material, and is selected. If an object was
+Choose a shape from the **Add** menu. A new object is placed at the origin (0, 0, 0),
+gets the first material, and is selected. If an object was
 selected, the new one goes after it in the list (inside it, if it is a group).
 
 | Shape | Its own settings | When added |
@@ -198,7 +214,8 @@ A group combines the objects inside it into one shape:
 | Difference | The first part, with all of the others cut away |
 
 To make a group, select an object and choose the group from the **Add** menu: the group is
-made around the selected object. Then put more objects into it with **Scene, Indent** (an
+made around the selected object, at the place where that object was (the object's own
+position becomes 0, so nothing moves). Then put more objects into it with **Scene, Indent** (an
 object goes into the group just above it in the list).
 
 In a **Difference**, the order matters: the first part is the one that is cut. Use
@@ -300,7 +317,7 @@ objects.
 
 ## Lights
 
-**Add, Light** adds a light (up to 8). Its settings:
+**Add, Light** adds a light (up to 16). Its settings:
 
 | Field | Meaning |
 |---|---|
@@ -424,6 +441,7 @@ read `.POV` files back.
 | + / - | Zoom in / out |
 | L | Locate the selection |
 | A | Aim the camera at the selection |
+| G | Snap on or off |
 | P | Preview |
 | R | Render |
 | S | Save |
@@ -439,7 +457,7 @@ read `.POV` files back.
 | Scene | Move up, Move down, Indent, Outdent, World... |
 | Add | Sphere, Box, Cylinder, Cone, Plane, Prism, Lathe, Light, Union, Merge, Intersection, Difference |
 | Material | Next, Previous, New (a copy), Edit |
-| View | Zoom in, Zoom out, Locate, Reset, Aim camera, Camera front, Camera top, Camera side |
+| View | Zoom in, Zoom out, Locate, Reset, Aim camera, Camera front, Camera top, Camera side, Snap |
 
 [SCREENSHOT: menus | The menus, open]
 
@@ -447,9 +465,9 @@ read `.POV` files back.
 
 | What | Limit |
 |---|---|
-| Objects (shapes and groups) | 32 |
+| Objects (shapes and groups) | 64 |
 | Materials | 16 |
-| Lights | 8 |
+| Lights | 16 |
 | Corners of one prism | 3 to 16 |
 | Points of one lathe | 2 to 16 |
 | Prism and lathe points in a document | 255 |

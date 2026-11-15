@@ -1103,7 +1103,7 @@ _size:
         lda #>DOC_SIZE
         sta xc_n+1
         jsr xcopy
-        lda #<(TEXT_BUF + DOC_SIZE)     ; version 3: the pool as it is
+        lda #<(TEXT_BUF + DOC_SIZE)     ; the pool as it is
         sta dmaj_src
         lda #>(TEXT_BUF + DOC_SIZE)
         sta dmaj_src+1

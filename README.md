@@ -45,8 +45,8 @@ screenshots are placeholders). Its text is [docs/manual/modeller.md](docs/manual
 `docs/manual/shots/NAME.png` it finds.
 
 A 640x200 interface in 256 colours, used with the mouse and keyboard. It starts with
-`DEFAULT.MDL` from the disk (File, New loads it too): no objects, the camera at the origin
-looking along +z, one light and one white material. Save as `DEFAULT` to change it; without
+`DEFAULT.MDL` from the disk (File, New loads it too): no objects, the camera up and back at
+(7, 5.5, -9) looking down at the origin (where Add puts new objects), one light and one white material. Save as `DEFAULT` to change it; without
 the file the same empty scene is built in. Whatever it loads, the document is named
 `SCENE`. tinyraytracer's scene, the old default, is `TINYRAY.MDL`.
 
@@ -67,7 +67,10 @@ the file the same empty scene is built in. Whatever it loads, the document is na
 - **Click a view's name** (its top-left corner) to make it fill the whole view area; click
   the name again for the four views.
 - **Mouse in the views:** click near an object's centre, a light or the camera to select it.
-  Drag to move it in that view's plane. In the camera view, drag on empty space to turn
+  Drag to move it in that view's plane (inside a turned or scaled group it still follows
+  the pointer). SHIFT-drag turns an object about the axis the view looks along (top: RY,
+  front: RZ, side: RX), CTRL-drag changes its scale S. View, Snap (G) makes drags snap:
+  0.5 units, 15 degrees, scales in quarters. In the camera view, drag on empty space to turn
   the camera round the point it looks at (the scene turns with the pointer; it stops short
   of straight above or below).
 - **Menus:**
@@ -83,19 +86,19 @@ the file the same empty scene is built in. Whatever it loads, the document is na
     BgG / BgB, and Trace: POV-Ray's `max_trace_level`). World is also the first entry in
     the list, above the objects.
   - **Add:** the six primitives, a lathe, a light, and the four booleans. A new boolean takes the
-    selected object into itself.
+    selected object into itself, placed where that object was (so nothing moves).
   - **Material:** Next, Previous, New (a copy), Edit (the properties panel then shows the
     material).
   - **View:** zoom, Locate (the top, front and side views centred on the selection, at
     the zoom they have), reset; Aim camera (it looks at the selection); Camera front, top
     and side (it looks at the selection, or where it looked, from that direction, as far
-    away as it was).
+    away as it was); Snap.
 - **Prisms** are the shape with points to edit. The selected prism has a handle on each
   corner in the top, front and side views (at its top). Click one to pick it (it fills
   in, and the panel shows its CX and CZ), and drag it to move it. I adds a corner half way
   to the next one, and DEL removes the picked corner. A prism has 3 to 16 corners. All the
   prisms in a document share a pool of 255 corners (in attic RAM), so there can be as many
-  as the 32 objects allow. A new one is a house shape, 1 high.
+  as the 64 objects allow. A new one is a house shape, 1 high.
 - **Lathes** are a profile turned about the y axis: points of (radius, height), edited
   like a prism's corners (handles in the front and side views; the panel shows the picked
   point's R and Y; I adds a point, DEL removes one). A new one is a pawn. The scene text
@@ -109,8 +112,13 @@ the file the same empty scene is built in. Whatever it loads, the document is na
   from `make_mdl.py`.
 - **`CHESS.MDL`**: a king, a rook (ivory) and a knight (ebony) on a board: lathe bodies, box
   battlements and cross, and a prism for the knight's head. Also from `make_mdl.py`.
+- **`CHESSSET.MDL`**: a whole set in the starting position on an 8 x 8 checker board (a1 dark,
+  queens on their own colour). A render takes 64 primitives at most, so each piece is one to
+  three simple shapes (a cone and a ball for a pawn, a cone for a rook, a prism head on a
+  base for a knight, which faces the middle of the board so the camera sees it in profile):
+  63 objects, 63 primitives. Also from `make_mdl.py`.
 - **Keys:** `+`/`-` zoom, DEL delete (the picked corner, or the selection), I add a
-  corner, U (or Ctrl-Z) undo, Y (or Ctrl-Y) redo, L locate, A aim the camera, R render, P preview,
+  corner, U (or Ctrl-Z) undo, Y (or Ctrl-Y) redo, L locate, A aim the camera, G snap, R render, P preview,
   S save.
 - **Render** writes the document out as scene text, parses it and renders it full screen.
   Press S on the picture to save it as `NAME.IFF`; any other key or a click goes back.
@@ -174,8 +182,9 @@ examples. Every file the system accepts is also valid for POV-Ray itself. To fra
 same way there, render at 640x375 with `right x*640/375`.
 
 The limits:
-- 64 primitives, 16 materials, 16 lights and 64 top-level objects (the modeller's documents
-  have up to 32 objects, but lathes and groups can make more primitives than that).
+- 64 primitives, 16 materials, 16 lights and 64 top-level objects. The modeller's documents
+  have up to 64 objects and 16 lights (lathes make several primitives each, so a document
+  can still be too big to render: the parser says so).
 - Booleans nested 7 deep.
 - Numbers to 4 decimal places, below 32767.
 - Keep everything within about 120 units of the camera.

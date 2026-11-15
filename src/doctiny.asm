@@ -1,7 +1,8 @@
 ;=======================================================================================
 ; doctiny.asm - overlay 5: the default document, which File, New and boot start from:
-; no objects, the camera at the origin looking along +z (where Add puts things, at z =
-; 12), one white light, and one plain material for what gets added. (tinyraytracer's
+; no objects, the camera up and back at (7, 5.5, -9) looking down at the origin (where Add
+; puts things), one white light, and one plain material for what gets added. It is
+; scenes/default.mdl too (private/tools/make_mdl.py default()). (tinyraytracer's
 ; scene, the old default, is scenes/tinyray.mdl.) Only the records it uses are kept here;
 ; doc_default clears the rest.
 ;=======================================================================================
@@ -52,8 +53,8 @@ DT_COPY .macro src, dst, n
 
 dt_hdr:
         .text "R65M"
-        .byte 3, 0, 1, 1                ; version, objects, materials, lights
-        .dint FXV((0, 0, 0)), FXV((0, 0, 1)), FX(60)
+        .byte DOC_VERSION, 0, 1, 1      ; version, objects, materials, lights
+        .dint FXV((7, 5.5, -9)), FXV((0, 0, 0)), FX(60)
         .dint FXV((0.2, 0.7, 0.8))
         .byte 5
         .cerror * - dt_hdr != DT_HDR, "the default document's header"

@@ -94,19 +94,11 @@ P_EXT           = 116                   ; half its extent along x, y, z (the par
 ; the tables in bank 0; the primitive records are in attic (prim_lo / prim_hi: offsets in
 ; the FAR bank), with each one's type here too (sc_ptype) for the tracer's quick checks
 SCENE_SIZE      = HDR_SIZE + LIGHT_SIZE * MAX_LIGHT + ROOT_SIZE * MAX_ROOT + 256 + MAT_SIZE * MAX_MAT + MAX_PRIM
-        .if DBG_SCENEBIN
-scene:          .binary "scene.bin"     ; a test build: the tables as pov.py made them
-        .cerror * - scene != SCENE_SIZE, "scene.bin is the wrong size"
-scene_pts:      .binary "scenepts.bin"  ; and the prism points in use (boot copies them
-scene_pts_end:                          ; to SC_PTS)
-scene_prims:    .binary "sceneprims.bin" ; and the primitive records (to PRIM_ATTIC)
-scene_prims_end:
-        .cerror scene_pts_end - scene_pts > 8 * MAX_PTS, "scenepts.bin is too big"
-        .else
-        .section bss
-scene:          .fill SCENE_SIZE
-        .send bss
-        .endif
+; The tables share their memory with the modeller's document (doc.asm): they are never
+; needed at once (a render parks the document in attic first). A test build that takes them
+; from pov.py (DBG_SCENEBIN) has them in overlay 3, and boot copies them here.
+scene           = doc_start
+        .cerror SCENE_SIZE > DOC_SIZE, "the scene tables are bigger than the document"
 sc_hdr          = scene
 sc_lights       = sc_hdr + HDR_SIZE
 sc_roots        = sc_lights + LIGHT_SIZE * MAX_LIGHT

@@ -20,6 +20,7 @@
 ;   DBG_PASS2     0 skips the recolouring
 ;   DBG_SCENEBIN  1: the tables come from scene.bin (private/tools/pov.py), no parsing
 ;   DBG_LOG       1: trace pixel (DBG_PX, DBG_PY) only, with trace.asm's #LOG on
+;   DBG_BENCH     1: poking dbg_bench times 16 modeller redraws (private/tools/bench_redraw.py)
 ; Results: ticks_render, ticks_recolour (frames); done = 1 traced, 2 recoloured,
 ; 3 saved, $80 the scene didn't parse (parse_err, parse_line), $81 a file is missing,
 ; $82 the picture couldn't be saved (sv_err). dbg_save: 0 = don't save.
@@ -38,6 +39,7 @@ DBG_LOG         = 0
 DBG_SAVE        = 1
 DBG_BOOTRENDER  = 0                     ; 1: render SCENE.POV at boot (the tests), not the
                                         ;    modeller
+DBG_BENCH       = 0                     ; 1: dbg_bench times redraws (model.asm)
 DBG_PX          = 0
 DBG_PY          = 0
         .endweak
@@ -103,6 +105,11 @@ ticks:          .byte 0, 0, 0           ; frames since the start (IRQ)
 ticks_render:   .byte 0, 0, 0
 ticks_recolour: .byte 0, 0, 0
 res_ran:        .byte 0                 ; 0 as loaded; 1 once it has started
+        .if DBG_BENCH
+dbg_bench:      .byte 0                 ; (model.asm: redraw timing)
+dbg_bn:         .byte 0
+dbg_btime:      .word 0
+        .endif
 
 RES_COPY        = $8320000              ; attic: the resident part as it was loaded
 
@@ -242,7 +249,27 @@ _ovl:
         sta ticks+2
         .endif
         .if DBG_SCENEBIN
-        lda #<scene_pts                 ; the test's prism points into place
+        lda #OVL_SAVE                   ; the test's tables (in overlay 3) into place
+        jsr ovl_load
+        lda #<scene_bin
+        sta ptr1
+        lda #>scene_bin
+        sta ptr1+1
+        lda #<scene
+        sta ptr2
+        lda #>scene
+        sta ptr2+1
+        lda #0
+        sta ptr1+2
+        sta ptr1+3
+        sta ptr2+2
+        sta ptr2+3
+        lda #<SCENE_SIZE
+        sta tmp5
+        lda #>SCENE_SIZE
+        sta tmp5+1
+        jsr dma_copy_far
+        lda #<scene_pts                 ; and the prism points
         sta px_b0
         lda #>scene_pts
         sta px_b0+1
@@ -411,6 +438,15 @@ res_image_end:                          ; (the end of what LOAD puts in memory)
         .word 0
         .logical OVL_BASE
         .include "save.asm"
+        .if DBG_SCENEBIN                ; (a test build: the tables as pov.py made them;
+scene_bin:      .binary "scene.bin"     ;  boot copies them to scene)
+        .cerror * - scene_bin != SCENE_SIZE, "scene.bin is the wrong size"
+scene_pts:      .binary "scenepts.bin"  ; the prism points in use (to SC_PTS)
+scene_pts_end:
+scene_prims:    .binary "sceneprims.bin" ; and the primitive records (to PRIM_ATTIC)
+scene_prims_end:
+        .cerror scene_pts_end - scene_pts > 8 * MAX_PTS, "scenepts.bin is too big"
+        .endif
         .cerror * > OVL_END, "overlay 3 is too big"
         .endlogical
         .send ovl3

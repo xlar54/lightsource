@@ -173,6 +173,7 @@ do_render:
         lda #OVL_WRITE
         jsr ovl_load
         jsr write_pov
+        jsr doc_park                    ; (the scene tables go where the document is)
         lda #OVL_PARSE
         jsr ovl_load
         jsr parse_text
@@ -316,6 +317,7 @@ _perr:  ; "Scene error, line N: the message" (the text is in overlay 2: copy it 
 _back:
         sta dc_m
         sty dc_m+1
+        jsr doc_unpark                  ; the document again, over the scene tables
         lda #5                          ; (tests: back in the modeller)
         sta done
         lda #OVL_MODEL

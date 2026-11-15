@@ -35,6 +35,7 @@ CMD_AIM         = 44                    ; the camera (modelres.asm cam_cmd)
 CMD_CAMFRONT    = 45
 CMD_CAMTOP      = 46
 CMD_CAMSIDE     = 47
+CMD_SNAP        = 48                    ; (also cam_cmd)
 
 type_names:     .word tn0, tn1, tn2, tn3, tn4, tn5, tn5b, tn6, tn7, tn8, tn9
 tn0:    .null "Sphere"
@@ -214,9 +215,16 @@ _nobj:
         lda #<st_light
         ldx #>st_light
         jsr d6_text
+        pla                             ; its number, 1 - 16
+        inc a
+        cmp #10
+        bcc +
+        sbc #10                         ; (carry set)
+        pha
+        lda #'1'
+        jsr d6_char
         pla
-        clc
-        adc #'1'
++       ora #'0'
         jsr d6_char
         bra _next
 _cam:
@@ -1178,6 +1186,8 @@ cmd_changes:
         bcc _no                         ; (World, Undo, Redo)
         cmp #CMD_MATEDIT                ; 19 - 32
         bcc _yes
+        cmp #CMD_SNAP                   ; (Snap changes nothing in the document)
+        beq _no
         cmp #CMD_AIM                    ; the camera's
         bcs _yes
 _no:    clc
@@ -1535,13 +1545,29 @@ _fill:
         iny
         cpy #11
         bne -
-+       ldy #O_SCALE+2                  ; scale 1, at (0, 0, 12), sizes 1 / 2
++       ldy #O_SCALE+2                  ; scale 1, at the origin, sizes 1 / 2
         lda #1
         sta (op),y
-        ldy #O_POS+10
-        lda #12
+        lda ca_t                        ; a group round the selection: where that was, and
+        cmp #OT_GROUP                   ; that at its origin, so that nothing moves
+        bcc +
+        lda ms_sel
+        cmp #DOC_MAXOBJ
+        bcs +
+        ldx ob_at
+        lda obj_lo+1,x
+        sta pa
+        lda obj_hi+1,x
+        sta pa+1
+        ldy #O_POS+11
+-       lda (pa),y
         sta (op),y
-        lda ca_t
+        lda #0
+        sta (pa),y
+        dey
+        cpy #O_POS-1
+        bne -
++       lda ca_t
         asl
         asl
         tax
@@ -1601,7 +1627,7 @@ new_n:          .byte 5, NEW_LPTS
 new_lo:         .byte <new_outline, <new_profile
 new_hi:         .byte >new_outline, >new_profile
 st_added:       .null "Added: give it a place in the views or the panel"
-st_full:        .null "No room for more (32 objects)"
+st_full:        .null "No room for more (64 objects)"
 
 cmd_addlight:
         lda doc_nlight
@@ -1627,7 +1653,7 @@ cmd_addlight:
 _full:  lda #<st_lfull
         ldx #>st_lfull
         jmp say
-st_lfull:       .null "No room for more lights (8)"
+st_lfull:       .null "No room for more lights (16)"
 new_light:      #DLIT (10, 20, -10), (1, 1, 1), 0
 
 cmd_delete:

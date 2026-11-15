@@ -104,6 +104,8 @@ gui_menus:
         .null "Camera top"
         .byte CMD_CAMSIDE
         .null "Camera side"
+        .byte CMD_SNAP
+        .null "Snap        G"
         .byte 0
         .byte 0
 
@@ -112,8 +114,22 @@ gui_menus:
 ; selection (or where it looked), as far from that as it is; turn it round where it looks
 ; by dragging in the camera view
 ;---------------------------------------------------------------------------------------
-; A = CMD_AIM .. CMD_CAMSIDE
+; A = CMD_AIM .. CMD_SNAP
 cam_cmd:
+        cmp #CMD_SNAP
+        bne _notsnap
+        lda ms_snap                     ; Snap: on or off
+        eor #1
+        sta ms_snap
+        beq _snapoff
+        lda #<st_snapon
+        ldx #>st_snapon
+        jmp say
+_snapoff:
+        lda #<st_snapoff
+        ldx #>st_snapoff
+        jmp say
+_notsnap:
         cmp #CMD_AIM
         bne _place
         lda ms_sel                      ; aim: look at the selection's place in the world
@@ -167,6 +183,8 @@ _place:
 ; front: from -z; top: from above (tipped a little towards -z: a camera can't look straight
 ; along its sky, y); side: from +x, so that z goes to the right as in the side view
 cam_dirs:       .dint 0, 0, -ONE,   0, ONE, -ONE / 16,   ONE, 0, 0
+st_snapon:      .null "Snap on: 0.5 units, 15 degrees, sizes in quarters"
+st_snapoff:     .null "Snap off"
 st_aimed:       .null "The camera looks at the selection"
 st_noaim:       .null "Select an object or a light to aim the camera at"
 st_placed:      .null "Camera placed: drag in the camera view to turn it round"
@@ -397,3 +415,428 @@ _none:  lda #<st_nomat
         jmp say
 _r:     rts
 st_nomat:       .null "It has no material: Material, Next gives it one"
+
+;---------------------------------------------------------------------------------------
+; dragging the selection in an ortho view (model_drag; a prism's corner is pt_drag):
+;   - it moves in the view's plane; inside a group the move is taken into the group's own
+;     axes (its transform is a rotation times a scale: along column j of the parent's A
+;     the move is (col_j . v) / (col_j . col_j))
+;   - with SHIFT (an object) it turns about the axis the view looks along: top RY, front
+;     RZ, side RX, a degree a pixel
+;   - with CTRL (an object) its scale S changes, by 1/64 of itself a pixel
+; Everything is worked out from where the drag began, so View, Snap can catch it: 0.5
+; units, 15 degrees, sizes in quarters. The keys are read at every move: pressing or
+; letting go of SHIFT or CTRL part way changes the mode from where things are then.
+;---------------------------------------------------------------------------------------
+MODKEYS         = $D611                 ; bits 0, 1 shift, 2 CTRL
+dbg_mod:        .byte 0                 ; (tests: OR'd into MODKEYS)
+
+drag_obj:
+        lda dr_moved
+        bne +
+        inc dr_moved                    ; its first move: undo
+        jsr u_save
+        lda #$ff                        ; (no mode yet)
+        sta dg_mode
++       jsr sel_pos_ptr
+        bcs +
+        rts
++       lda #0                          ; the mode the keys ask for now: 0 move, 1 turn,
+        sta dg_k                        ; 2 size (objects only)
+        lda ms_sel
+        cmp #DOC_MAXOBJ
+        bcs _mode
+        lda MODKEYS
+        ora dbg_mod
+        tax
+        and #%011
+        beq +
+        inc dg_k
+        bra _mode
++       txa
+        and #%100
+        beq _mode
+        lda #2
+        sta dg_k
+_mode:  lda dg_k                        ; a new mode (or the first): it starts from here,
+        cmp dg_mode                     ; the object as it is now
+        beq _go
+        ldx dg_mode
+        sta dg_mode
+        inx
+        beq +                           ; (the first: from where the button went down)
+        lda ev_x
+        sta ms_dx
+        lda ev_x+1
+        sta ms_dx+1
+        lda ev_y
+        sta ms_dy
++       ldy #11
+-       lda (lp),y
+        sta dg_p0,y
+        dey
+        bpl -
+        lda ms_sel
+        cmp #DOC_MAXOBJ
+        bcs _go
+        tax
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_ROT + 15                 ; its rotation and scale
+-       lda (op),y
+        sta dg_r0 - O_ROT,y
+        dey
+        cpy #O_ROT - 1
+        bne -
+_go:
+        sec                             ; the pointer from where this mode began: dx, dy (up)
+        lda ev_x
+        sbc ms_dx
+        sta dg_dx
+        lda ev_x+1
+        sbc ms_dx+1
+        sta dg_dx+1
+        sec
+        lda ms_dy
+        sbc ev_y
+        sta dg_dy
+        lda #0
+        sbc #0
+        sta dg_dy+1
+        lda dg_mode
+        cmp #1
+        bne +
+        jmp _turn
++       bcc _move
+        jmp _size
+
+_move:
+        lda dg_dx                       ; d across = dx / zoom, d up = dy / (zoom * 8/15)
+        sta dg_a+2
+        lda dg_dx+1
+        sta dg_a+3
+        lda dg_dy
+        sta dg_b+2
+        lda dg_dy+1
+        sta dg_b+3
+        lda #0
+        sta dg_a
+        sta dg_a+1
+        sta dg_b
+        sta dg_b+1
+        lda ms_drag
+        jsr vw_zoom                     ; tq = zoom
+        #FDIV dg_a, tq, dg_a
+        #FMUL tq, q_aspect, dg_t
+        #FDIV dg_b, dg_t, dg_b
+        ldx #11                         ; the move in the world
+        lda #0
+-       sta dg_v,x
+        dex
+        bpl -
+        ldx ms_drag
+        lda vw_ha,x
+        asl
+        asl
+        tax
+        ldy #0
+-       lda dg_a,y
+        sta dg_v,x
+        inx
+        iny
+        cpy #4
+        bne -
+        ldx ms_drag
+        lda vw_va,x
+        asl
+        asl
+        tax
+        ldy #0
+-       lda dg_b,y
+        sta dg_v,x
+        inx
+        iny
+        cpy #4
+        bne -
+        jsr dg_parent                   ; inside a group: in its axes
+        ldy #0                          ; position = start + move (each part that moves
+_part:                                  ; snapped)
+        tya
+        tax
+        clc
+        .for si = 0, si < 4, si += 1
+        lda dg_p0+si,x
+        adc dg_v+si,x
+        sta dg_t+si
+        .next
+        lda dg_v,x
+        ora dg_v+1,x
+        ora dg_v+2,x
+        ora dg_v+3,x
+        beq +
+        lda ms_snap
+        beq +
+        clc                             ; to the nearest 0.5: + 0.25, then the bits below
+        lda dg_t+1                      ; 0.5 cleared
+        adc #$40
+        lda dg_t+2
+        adc #0
+        sta dg_t+2
+        lda dg_t+3
+        adc #0
+        sta dg_t+3
+        lda dg_t+1
+        clc
+        adc #$40
+        and #$80
+        sta dg_t+1
+        lda #0
+        sta dg_t
++       .for si = 0, si < 4, si += 1
+        lda dg_t+si
+        sta (lp),y
+        iny
+        .next
+        cpy #12
+        bne _part
+        jmp _show
+
+_turn:  ; the angle about the view's axis: start + dx degrees
+        ldx ms_drag
+        lda dg_axis,x
+        asl
+        asl
+        sta dg_k
+        tax
+        clc
+        lda dg_r0+2,x
+        adc dg_dx
+        sta dg_t+2
+        lda dg_r0+3,x
+        adc dg_dx+1
+        sta dg_t+3
+        lda dg_r0,x
+        sta dg_t
+        lda dg_r0+1,x
+        sta dg_t+1
+        lda ms_snap
+        beq +
+        jsr dg_snap15
++       lda ms_sel
+        tax
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        clc
+        lda dg_k
+        adc #O_ROT
+        tay
+        ldx #0
+-       lda dg_t,x
+        sta (op),y
+        iny
+        inx
+        cpx #4
+        bne -
+        jmp _show
+
+_size:  ; S = start * (1 + dx / 64), at least 1/16 of it
+        lda dg_dx                       ; dx / 64 in 16.16 = dx << 10
+        asl
+        sta dg_t+1
+        lda dg_dx+1
+        rol
+        sta dg_t+2
+        lda dg_dx+1                     ; (the sign into the top byte)
+        and #$80
+        beq +
+        lda #$ff
++       sta dg_t+3
+        lda #0
+        sta dg_t
+        asl dg_t+1
+        rol dg_t+2
+        rol dg_t+3
+        clc
+        lda dg_t+2
+        adc #1                          ; + 1.0
+        sta dg_t+2
+        lda dg_t+3
+        adc #0
+        sta dg_t+3
+        #BGTQ dg_t, q_sixteenth, +
+        #MOVQ q_sixteenth, dg_t
++       #FMUL dg_s0, dg_t, dg_t
+        lda ms_snap
+        beq _sput
+        clc                             ; to the nearest quarter, a quarter at least
+        lda dg_t+1
+        adc #$20
+        and #$c0
+        sta dg_t+1
+        lda dg_t+2
+        adc #0
+        sta dg_t+2
+        lda dg_t+3
+        adc #0
+        sta dg_t+3
+        lda #0
+        sta dg_t
+        #BGTQ dg_t, q_quarter, _sput
+        #MOVQ q_quarter, dg_t
+_sput:  #BGTQ dg_t, q_minscale, +       ; (never 0)
+        #MOVQ q_minscale, dg_t
++       ldx ms_sel
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_SCALE
+        ldx #0
+-       lda dg_t,x
+        sta (op),y
+        iny
+        inx
+        cpx #4
+        bne -
+_show:
+        jsr draw_views
+        jmp draw_props
+
+; inside a group: dg_v (a move in the world) into the parent's axes. (wm is from the click:
+; the parent doesn't move while its child is dragged)
+dg_parent:
+        lda ms_sel
+        cmp #DOC_MAXOBJ
+        bcs _r
+        tax
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_DEPTH
+        lda (op),y
+        beq _r
+        sta dg_k
+        dec dg_k                        ; the parent: the nearest one before it a level up
+        ldx ms_sel
+-       dex
+        bmi _r
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        lda (op),y
+        cmp dg_k
+        bne -
+        txa
+        jsr wm_ptr                      ; pa = its world transform (rows of A, t)
+        ldy #35
+-       lda (pa),y
+        sta dg_m,y
+        dey
+        bpl -
+        lda #0                          ; dg_w[j] = (col_j . v) / (col_j . col_j)
+        sta dg_j                        ; (j * 4)
+_col:
+        ldx dg_j
+        ldy #0
+-       lda dg_m,x
+        sta dg_c,y
+        lda dg_m+12,x
+        sta dg_c+4,y
+        lda dg_m+24,x
+        sta dg_c+8,y
+        inx
+        iny
+        cpy #4
+        bne -
+        #DOT dg_c, dg_v, tq
+        #DOT dg_c, dg_c, dg_t
+        #MOVQ q_zero, dg_a
+        #BEQZ dg_t, +
+        #FDIV tq, dg_t, dg_a
++       ldx dg_j
+        ldy #0
+-       lda dg_a,y
+        sta dg_w,x
+        inx
+        iny
+        cpy #4
+        bne -
+        lda dg_j
+        clc
+        adc #4
+        sta dg_j
+        cmp #12
+        bne _col
+        #VMOV dg_w, dg_v
+_r:     rts
+
+; dg_t (16.16 degrees) to the nearest 15
+dg_snap15:
+        lda dg_t+1                      ; whole degrees, rounded, + 3600 (positive)
+        asl
+        lda dg_t+2
+        adc #<3600
+        sta tmp0
+        lda dg_t+3
+        adc #>3600
+        sta tmp1
+        clc                             ; + 7, then whole fifteens
+        lda tmp0
+        adc #7
+        sta tmp0
+        bcc +
+        inc tmp1
++       lda #<(-3600)                   ; count them up from -3600
+        sta dg_t+2
+        lda #>(-3600)
+        sta dg_t+3
+_count: lda tmp1
+        bne +
+        lda tmp0
+        cmp #15
+        bcc _counted
++       sec
+        lda tmp0
+        sbc #15
+        sta tmp0
+        bcs +
+        dec tmp1
++       clc
+        lda dg_t+2
+        adc #15
+        sta dg_t+2
+        bcc _count
+        inc dg_t+3
+        bra _count
+_counted:
+        lda #0
+        sta dg_t
+        sta dg_t+1
+        rts
+
+dg_axis:        .byte 1, 2, 0           ; the angle each view turns: RY, RZ, RX
+q_sixteenth:    .dint ONE / 16
+q_quarter:      .dint ONE / 4
+q_minscale:     .dint ONE / 64
+dg_mode:        .byte 0
+dg_k:           .byte 0
+dg_j:           .byte 0
+dg_dx:          .word 0
+dg_dy:          .word 0
+dg_p0:          .fill 12                ; at the start: its position
+dg_r0:          .fill 12                ;  rotation
+dg_s0:          .dword 0                ;  and scale (O_ROT, O_SCALE: together)
+        .cerror O_SCALE != O_ROT + 12, "drag_obj copies the rotation and scale together"
+dg_a:           .dword 0
+dg_b:           .dword 0
+dg_t:           .dword 0
+dg_v:           .fill 12
+dg_w:           .fill 12
+dg_c:           .fill 12
+dg_m:           .fill 36
