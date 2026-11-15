@@ -90,7 +90,7 @@ Next
   overlay 6 about 16 KB. Every pixel of the benchmark screens unchanged; tested in Xemu by
   injected events: a value typed (the help prompt shown), a material click, No shadow, a
   prism corner's CX after picking it, and a value typed after a preview.
-- [ ] Spotlights (not committed yet).
+- [x] Spotlights (and `DESK.MDL`, lit only by a desk lamp's spotlight).
   - The scene language, the tracer and the models: `spotlight point_at radius falloff
     tightness` as in POV-Ray (`scenes/spot.pov`: tables and every pixel match the models).
     The scene's light record grew to 52 bytes; the parser's error messages moved past
