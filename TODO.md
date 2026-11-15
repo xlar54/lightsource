@@ -130,6 +130,13 @@ Modeller: still to do
 - [ ] File, Render POV...: render a `.POV` file from the disk (the parser and tracer can).
 - [ ] Reading `.POV` files into the modeller (at least the ones it writes itself).
 - [ ] A material list to pick from (now Next / Previous).
+- [ ] Material files (not committed yet): Material, Save to file... / Load from file...
+  (`NAME.MAT`: "R65T", version 1, the 80-byte record; `src/matfile.asm`, overlay 5), and
+  15 starter materials on the disk. Tested in Xemu by injected events: the list, a load
+  (the selected object takes it), save under a new name and load that back, undo, ESC
+  (no undo step left behind), File, Open unchanged.
+- [ ] The material editor: its own screen (overlay 7) with a preview sphere traced small,
+  the fields grouped, a colour swatch, numbers nudged by dragging, presets.
 
 Was in the plan (kept for reference)
 ------------------------------------

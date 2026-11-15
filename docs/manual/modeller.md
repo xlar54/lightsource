@@ -305,6 +305,21 @@ objects.
 - **Material, Edit** opens the selected object's material in the panel. Select an object to
   go back.
 
+## A library of materials
+
+A material can be kept in a file of its own, `NAME.MAT`, and loaded into any document.
+
+- **Material, Save to file...** saves the material being edited (or the selected object's)
+  as `NAME.MAT`. It asks for the name, starting with the material's own.
+- **Material, Load from file...** lists the disk's `.MAT` files: click one, or use the
+  cursor keys and RETURN. It is added to the document (up to 16 materials), and the
+  selected object takes it. With nothing selected, it opens for editing. **Name...** types
+  a name instead; **Cancel** or ESC goes back. A load can be undone.
+
+The disk comes with a starter set: BRASS, CHECKER (black and white squares), CHROME,
+COPPER, EBONY, GLASS, GLOW (lights itself up, for lamps and screens), GOLD, IVORY, MIRROR,
+PLASTIC, RUBBER, TILES (cream and blue squares), WATER and WOOD.
+
 ## Material settings
 
 | Field | Meaning |
@@ -439,6 +454,7 @@ than they are wide, and the files record that, so viewers show the right shape.
 | File, Save | Saves the document as NAME.MDL |
 | File, Save as... | Asks for a new name, then saves |
 | File, Export POV | Writes the scene as POV-Ray text, NAME.POV |
+| Material, Save to file... / Load from file... | A material on its own, NAME.MAT (see "A library of materials") |
 | File, Exit | Asks first, then goes back to BASIC (anything not saved is lost) |
 
 File names are up to 12 characters, without the extension. A new document is called
@@ -496,7 +512,7 @@ read `.POV` files back.
 | Edit | Undo, Redo, Delete, Duplicate |
 | Scene | Move up, Move down, Indent, Outdent, World... |
 | Add | Sphere, Box, Cylinder, Cone, Plane, Prism, Lathe, Light, Spotlight, Union, Merge, Intersection, Difference |
-| Material | Next, Previous, New (a copy), Edit |
+| Material | Next, Previous, New (a copy), Edit, Save to file..., Load from file... |
 | View | Zoom in, Zoom out, Locate, Reset, Aim camera, Aim light..., Camera front, Camera top, Camera side, Snap, Grid |
 
 [SCREENSHOT: menus | The menus, open]

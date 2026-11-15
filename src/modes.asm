@@ -16,7 +16,20 @@ do_command:
         beq _ask
         cmp #CMD_OPEN
         beq _open
-        bra _file
+        cmp #CMD_MATSAVE
+        beq _mat
+        cmp #CMD_MATLOAD
+        bne _file
+_mat:   lda #OVL_WRITE                  ; material files (matfile.asm): A/Y = the message
+        jsr ovl_load
+        lda dc_cmd
+        cmp #CMD_MATSAVE
+        bne +
+        jsr mat_save
+        bra ++
++       jsr mat_load
++       ldz #0
+        jmp _back
 _render:
         jmp do_render
 _open:  ; the disk's documents to pick from (or a name typed)
@@ -328,6 +341,7 @@ dc_msg:         .fill DC_MSGMAX + 1
 dc_pname:       .null "File name: "
 dc_cancel:      .null "Cancelled"
 dc_opened:      .null "Opened"
+dc_matloaded:   .null "Loaded the material"
 dc_saved:       .null "Saved"
 dc_exported:    .null "Exported the scene as NAME.POV"
 dc_rendered:    .null "Rendered (press S on the picture to save it)"

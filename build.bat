@@ -64,7 +64,7 @@ set SCENEPOV=%M65SCENE%
 if "%SCENEPOV%"=="" set SCENEPOV=scenes\default.pov
 ..\c1541.exe -attach %PROJECT%.d81 -write ..\%SCENEPOV% "scene.pov,s" >nul
 if errorlevel 1 (cd .. & exit /b 1)
-for %%f in (..\scenes\*.pov ..\scenes\*.mdl) do (
+for %%f in (..\scenes\*.pov ..\scenes\*.mdl ..\scenes\*.mat) do (
     ..\c1541.exe -attach %PROJECT%.d81 -write %%f "%%~nxf,s" >nul
     if errorlevel 1 (echo failed writing %%f & cd .. & exit /b 1)
 )

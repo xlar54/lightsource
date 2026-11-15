@@ -234,6 +234,9 @@ program renders `SCENE.POV` from the disk at boot and saves `SCENE.IFF`.
 | `$8340000` | Undo: 16 snapshots of 16 KB (to `$837FFFF`) |
 | `$8700000` | The overlays (64 KB apart: overlay n at `$87n0000`). Overlay 6's help lines are in its slot past the window's size (`$8765000`) |
 
+Materials on their own are `NAME.MAT` (SEQ, 85 bytes): `R65T`, a version byte (1), then the
+material's 80-byte record as in a document (`src/doc.asm` `DM_*`).
+
 Files on disk are SEQ: `NAME.POV` for scenes and `NAME.IFF` for pictures: an ILBM with 8
 bitplanes, ByteRun1 compression, a 256-colour CMAP, a hi-res CAMG and a BMHD aspect of 8:15,
 which carries

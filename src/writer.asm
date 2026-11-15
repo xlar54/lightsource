@@ -890,8 +890,8 @@ wr_name:
         sta wr_v
         stx wr_v+1
         ldy #0
-        lda #<ms_name
-        ldx #>ms_name
+        lda wr_nm
+        ldx wr_nm+1
         jsr kst_name_put
         lda wr_v
         ldx wr_v+1
@@ -903,8 +903,13 @@ wr_name:
 wr_plain_name:
         sta wr_v
         stx wr_v+1
+        lda wr_nm                       ; (NAME: from wr_nm)
+        sta _nm+1
+        lda wr_nm+1
+        sta _nm+2
         ldx #0
--       lda ms_name,x
+-
+_nm:    lda ms_name,x
         sta wr_plain,x
         beq +
         inx
@@ -1187,7 +1192,7 @@ doc_tag:        .text "R65M"
 
 ;=======================================================================================
 ; the Open dialog: the disk's .MDL files in the right-hand panel. open_dialog -> A = 0 a
-; file was picked (ms_name is its name), 1 type a name instead, 2 cancelled (carry set:
+; file was picked (its name in wr_nm's buffer: ms_name), 1 type a name instead, 2 cancelled (carry set:
 ; the disk couldn't be read, wr_err = its status)
 ;=======================================================================================
 DLG_MAX         = 48                    ; names kept
@@ -1206,8 +1211,8 @@ open_dialog:
 +       lda #0
         sta dl_sel
         sta dl_top
-        lda #<st_dlg
-        ldx #>st_dlg
+        lda dl_stat
+        ldx dl_stat+1
         jsr gui_status
         #GXY 480, 10, 639, 189          ; (put back when it closes)
         ldx #0
@@ -1315,14 +1320,18 @@ _type:  lda #1
 _cancel:
         lda #2
         bra dlg_close
-_pick:  ldx dl_sel                      ; its name
+_pick:  ldx dl_sel                      ; its name (to wr_nm's buffer)
         lda dl_lo,x
         sta txt_ptr
         lda dl_hi,x
         sta txt_ptr+1
+        lda wr_nm
+        sta _dst+1
+        lda wr_nm+1
+        sta _dst+2
         ldy #0
 -       lda (txt_ptr),y
-        sta ms_name,y
+_dst:   sta ms_name,y
         beq +
         iny
         bra -
@@ -1353,7 +1362,19 @@ dlg_draw:
         #GXY 480, 10, 639, 189
         lda #GC_PANEL
         jsr gui_fill
-        #GTEXT DLG_COL, 12, GC_YELLOW, $ff, st_open
+        lda #DLG_COL                    ; the title (dl_title)
+        sta d6_tc
+        lda #12
+        sta d6_y
+        lda #0
+        sta d6_y+1
+        lda #GC_YELLOW
+        sta d6_col
+        lda #$ff
+        sta d6_bg
+        lda dl_title
+        ldx dl_title+1
+        jsr d6_text
         lda dl_top
         beq +
         #GTEXT 73, 12, GC_LIGHT, $ff, st_up
@@ -1503,14 +1524,18 @@ _eol:
         lda dl_q
         cmp #2
         bne _line
-        lda dl_len                      ; NAME.MDL?
+        lda dl_len                      ; NAME + the extension (dl_ext, 4 characters)?
         cmp #5
         bcc _line
         tax
+        lda dl_ext
+        sta _ext+1
+        lda dl_ext+1
+        sta _ext+2
         ldy #3
 -       dex
         lda dl_tmp,x
-        cmp ext_mdl,y
+_ext:   cmp ext_mdl,y
         bne _line
         dey
         bpl -
@@ -1543,6 +1568,12 @@ _end:
         clc
         rts
 
+; what the dialog lists and where a picked name goes (the overlay is loaded fresh for each
+; command, so these start as the document's every time; mat_load changes them)
+wr_nm:          .word ms_name           ; NAME for the file routines (wr_name)
+dl_ext:         .word ext_mdl
+dl_title:       .word st_open
+dl_stat:        .word st_dlg
 st_dollar:      .null "$"
 st_reading:     .null "Reading the disk..."
 st_dlg:         .null "Open: click a document, or the cursor keys and RETURN. ESC cancels"

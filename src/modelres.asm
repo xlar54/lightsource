@@ -87,6 +87,10 @@ gui_menus:
         .null "New (a copy)"
         .byte CMD_MATEDIT
         .null "Edit"
+        .byte CMD_MATSAVE
+        .null "Save to file..."
+        .byte CMD_MATLOAD
+        .null "Load from file..."
         .byte 0
         .byte 35
         .null "View"

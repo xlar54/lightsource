@@ -38,6 +38,8 @@ CMD_CAMSIDE     = 47
 CMD_SNAP        = 48                    ; (also cam_cmd)
 CMD_GRID        = 49                    ; (also cam_cmd)
 CMD_ADDSPOT     = 35                    ; Add, Spotlight
+CMD_MATSAVE     = 36                    ; Material, Save to file... (modes.asm, matfile.asm)
+CMD_MATLOAD     = 37                    ; Material, Load from file...
 CMD_AIMLIGHT    = 50                    ; View, Aim light: the next click says where
 
 type_names:     .word tn0, tn1, tn2, tn3, tn4, tn5, tn5b, tn6, tn7, tn8, tn9
@@ -637,6 +639,8 @@ cmd_changes:
         beq _yes
         cmp #CMD_ADDSPOT
         beq _yes
+        cmp #CMD_MATLOAD
+        beq _yes
         cmp #CMD_OPEN
         beq _yes
         cmp #CMD_DELETE
@@ -657,7 +661,9 @@ _yes:   sec
         rts
 ; after do_command: an Open that didn't open anything takes its u_save back
 open_check:
-        lda mc_cmd
+        lda dc_cmd                      ; (resident: do_command reloaded this overlay
+        cmp #CMD_MATLOAD                ;  fresh, so mc_cmd isn't what it was)
+        beq _mat
         cmp #CMD_OPEN
         bne +
         lda ms_msg
@@ -668,6 +674,13 @@ open_check:
         beq +
 _back:  jmp u_unsave
 +       rts
+_mat:   lda ms_msg                      ; (a material not loaded: the same)
+        cmp #<dc_matloaded
+        bne _back
+        lda ms_msg+1
+        cmp #>dc_matloaded
+        bne _back
+        rts
 
 ; a message A/X, then everything again
 say:

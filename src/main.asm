@@ -582,6 +582,7 @@ ovl4_end:
         .logical OVL_BASE
         .include "writer.asm"
         .include "doctiny.asm"
+        .include "matfile.asm"
         .cerror * > OVL_END, "overlay 5 is too big"
         .endlogical
         .send ovl5

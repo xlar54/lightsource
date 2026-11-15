@@ -92,7 +92,10 @@ the file the same empty scene is built in. Whatever it loads, the document is na
     booleans. A new boolean takes the
     selected object into itself, placed where that object was (so nothing moves).
   - **Material:** Next, Previous, New (a copy), Edit (the properties panel then shows the
-    material).
+    material), Save to file... and Load from file... (a material on its own, `NAME.MAT`: a
+    library to share between documents; the disk has 15 to start with, from glass and
+    gold to checker floors. A loaded one is added to the document and the selected object
+    takes it).
   - **View:** zoom, Locate (the top, front and side views centred on the selection, at
     the zoom they have), reset; Aim camera (it looks at the selection); Aim light... (with
     a light selected, click what it should aim at: it becomes a spotlight); Camera front, top
@@ -159,7 +162,8 @@ Build and run
 - `build.bat` assembles everything with 64tass and writes `target/renderer65.d81`. The disk
   holds:
   - the program and its overlays;
-  - every scene in `scenes/`, with `scenes/default.pov` also written as `SCENE.POV`.
+  - every scene in `scenes/`, with `scenes/default.pov` also written as `SCENE.POV`;
+  - the starter materials, `scenes/*.mat` (made by `private/tools/make_mdl.py mats`).
 - `run.bat` builds and starts Xemu.
 
 At boot the program starts the modeller. A test build with `-D DBG_BOOTRENDER=1` renders
@@ -230,7 +234,7 @@ redraw. Neither overlay may use the other's labels directly, which the assembler
 | Overlay 2 | `parse.asm`, `parse2.asm`, `parsev.asm` | The scene language: tokenizer, expressions, objects, transforms, materials, final compile; the error messages (past the window's end in the file: they stay in attic) |
 | Overlay 3 | `save.asm` | IFF ILBM files |
 | Overlay 4 | `model.asm`, `model2.asm`, `model3.asm`, `model4.asm` | The modeller: views, wireframes, the grid, list, commands, undo |
-| Overlay 5 | `writer.asm`, `doctiny.asm` | The document as scene text; `.MDL` and `.POV` files; the Open dialog (the disk's directory) |
+| Overlay 5 | `writer.asm`, `doctiny.asm`, `matfile.asm` | The document as scene text; `.MDL`, `.POV` and `.MAT` files; the Open dialog (the disk's directory, for documents or materials) |
 | Overlay 6 | `modelpanel.asm`, `modelhelp.asm` | The modeller's properties panel; the prompts' help lines (past the window's end in the file: they stay in attic) |
 | Resident | `gui.asm`, `doc.asm`, `modelst.asm`, `modes.asm`, `modelres.asm` | The toolkit (palette, pointer, events, menus, typing, numbers); the document; the modeller's lasting state; render and file commands; the modeller's menus, mouse drags and material commands |
 
