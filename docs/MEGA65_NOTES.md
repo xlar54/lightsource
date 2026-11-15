@@ -363,6 +363,8 @@ The multiplier's output is live: `MULTOUT` changes as soon as an input does. To 
 - Double-buffer by flipping `$D060-$D063` in a raster IRQ in the bottom border. The same IRQ can feed the music.
 - Game-loop pattern: logic is plain sequential code that calls `frame` whenever it waits. `frame` draws into the back buffer, flips at the next vertical blank, and reads the controls.
 - Sync heavy redraws to vertical blank; poll input before the wait so the blank is all drawing time.
+- **Filling rectangles by DMA:** inside one 8-pixel band of rows, a cell's rows are contiguous (`rows * 8` bytes from `row*8`): one DMA fill per cell. In a row-major layout a whole band of whole cells is one block. A part cell (the rectangle's ends) is one fill per pixel column with a destination step of 8 (`$85 8`). `lib/draw640.asm` `d6_fill` took the empty modeller's redraw from 216 ms to 51 ms.
+- **Measure before speeding up the pixels:** the modeller's wireframes average 3 pixels a line, so a faster per-pixel loop gained nothing until the per-line set-up (clip tests, the address) was made cheap too. Time a run with the routine stubbed out (`rts`), then with the loop stubbed out, to see which half costs.
 
 - **640x200, 256 colours:** FCM with H640 (`$D031` bit 7), 80 chars a row (`$D05E` = 80, LINESTEP 160), 4000-byte screen RAM and 4000 bytes of colour RAM cleared. A framebuffer is 128,000 bytes: `$40000-$5F3FF`, and a second one fits in `$20000-$3F3FF` after `rom_unprotect`. `lib/fcm640.asm` lays the cells out row by row. Xemu shows a pixel 1 wide and 2 tall; on a 4:3 PAL display it is about 1.875 times taller than wide. [Xemu]
 

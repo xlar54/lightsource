@@ -716,6 +716,8 @@ pt_world:
         bra ++
 +       #MOVQ ci_hh, sg_a+4
 +
+        lda #$ff                        ; (all three coordinates)
+        sta xf_skip
         #VMOV sg_a, xf_in
         jsr xf_point
         #VMOV xf_out, pk_w

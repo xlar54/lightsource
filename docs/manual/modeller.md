@@ -320,7 +320,7 @@ objects.
 | IOR | Index of refraction for transparent materials (glass is 1.5, water 1.33) |
 | Checker | yes: a checker pattern of its colour and a second colour |
 | Sq | The checker's square size |
-| R2, G2 | The second colour's red and green |
+| R2, G2, B2 | The checker's second colour |
 
 [SCREENSHOT: material-edit | Editing a material]
 

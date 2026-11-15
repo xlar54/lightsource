@@ -66,7 +66,7 @@ MOUSE_MAX_X     = 639
 ; ---- where everything goes -----------------------------------------------------------
         * = $1fff
         .dsection res
-        .cerror * > OVL_BASE, "the resident part runs into the overlay window"
+        .cerror * > OVL_BASE, "the resident part runs into the overlay window: ", format("$%04x", *)
         * = $100000
         .dsection ovl0
         * = $110000
@@ -455,7 +455,8 @@ scene_prims_end:
         .word 0
         .logical OVL_BASE
         .include "model.asm"
-        .cerror * > OVL_END, "overlay 4 is too big"
+        .cerror * > OVL_END, "overlay 4 is too big: ", format("$%04x", *)
+ovl4_end:
         .fill OVL_END - *, 0            ; (the file goes on past the window: help lines that
         .include "modelhelp.asm"        ;  stay in attic)
         .endlogical

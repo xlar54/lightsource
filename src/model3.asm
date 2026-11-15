@@ -2112,6 +2112,11 @@ sg_a:           .fill 12
 sg_b:           .fill 12
 sg_wa:          .fill 12
 sg_wb:          .fill 12
+sg_px:          .fill 4                 ; the last point sg_proj projected
+sg_py:          .fill 4
+sg_ok:          .byte 0
+sg_oka:         .byte 0
+xf_skip:        .byte $ff
 xf_in:          .fill 12
 xf_out:         .fill 12
 pj_v:           .byte 0

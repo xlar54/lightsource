@@ -69,11 +69,28 @@ Next
   in overlay 4's file past OVL_END, so they stay in attic and cost the window nothing.
   Clicking anywhere while a prompt waits cancels it, and the click then acts as usual.
 - [x] `TIE.MDL`: a TIE fighter (37 objects) with a planet and stars on black.
-- [ ] Redraws are slow: JUGGLER.MDL (30 objects) takes 1.1 s for the views, the list and the
-  panel, and 1.06 s for the views alone (each step of a drag). `private/tools/bench_redraw.py`
-  measures it (`--nogrid` turns the grid off first). Even the empty default takes 204 ms,
-  mostly the views' background fills: `d6_fill` is a CPU loop over every pixel, where whole
-  cells (64 contiguous bytes, contiguous along a cell row) could be DMA-filled.
+- [x] Faster redraws, every pixel unchanged (the framebuffer compared byte for byte with the
+  old code's after `private/tools/bench_redraw.py --dump`, for JUGGLER, TIE and the default):
+
+  | Scene | Full redraw | A drag step |
+  |---|---|---|
+  | JUGGLER | 1161 -> 585 ms | 1098 -> 568 ms |
+  | TIE | 1166 -> 638 ms | 1102 -> 621 ms |
+  | The empty default | 216 -> 51 ms | 154 -> 38 ms |
+
+  - `d6_fill` by DMA: a whole cell's rows are one fill, a part cell one fill down each column
+    (step 8). `d6_hline` and `d6_vline` are one-row / one-column fills.
+  - Circles and rings transform and project each point once (it was twice: each segment's
+    two ends), and the flat views skip the coordinate they don't show.
+  - `clip_line` draws at once when both ends are inside; `d6_line` then steps the pixel's
+    address instead of clipping and addressing each pixel.
+- [ ] More redraw speed. What's left of a JUGGLER drag step (about 570 ms): transforming the
+  points about 160 ms, projecting about 135, clipping and lines about 140, the rest (fills,
+  `world_all`, the list) about 130. Ideas, all short of room (overlay 4 has 39 bytes free,
+  the resident part 91):
+  - transform each point once for all four views (now once a view);
+  - a flat view's projection folded into the object's matrix (2 multiplies a point fewer);
+  - fewer circle segments for objects that are small on screen (changes the picture).
 
 Modeller: still to do
 ---------------------

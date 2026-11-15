@@ -862,12 +862,13 @@ circle:
 circle_r:
         lda #0
         sta ci_k
-        jsr ci_point                    ; the first point into sg_b
+        jsr ci_point                    ; the first point (each one is projected once)
+        #VMOV sg_b, xf_in
+        jsr sg_proj
 _s:
-        #VMOV sg_b, sg_a
         inc ci_k
         jsr ci_point
-        jsr seg_local
+        jsr seg_next
         lda ci_k
         cmp #16
         bne _s
@@ -926,12 +927,34 @@ ci_cos:
 ; the object-space segment sg_a -> sg_b, through wcur
 seg_local:
         #VMOV sg_a, xf_in
-        jsr xf_point
-        #VMOV xf_out, sg_wa
+        jsr sg_proj
+; seg_next: on from the last point projected (sg_proj) to sg_b: a polyline projects each
+; point once
+seg_next:
+        lda sg_ok
+        sta sg_oka
+        #MOVQ sg_px, ln_x0
+        #MOVQ sg_py, ln_y0
         #VMOV sg_b, xf_in
+        jsr sg_proj
+        lda sg_ok
+        and sg_oka
+        beq _r
+        #MOVQ sg_px, ln_x1
+        #MOVQ sg_py, ln_y1
+        jmp clip_line
+_r:     rts
+; xf_in through wcur, projected: sg_px, sg_py (16.16 pixels); sg_ok = 1 if it can be seen
+sg_proj:
         jsr xf_point
-        #VMOV xf_out, sg_wb
-        ; (falls into seg_world)
+        #VMOV xf_out, pj_w
+        jsr project
+        lda #0
+        rol
+        sta sg_ok
+        #MOVQ pj_fx, sg_px
+        #MOVQ pj_fy, sg_py
+        rts
 ; the world segment sg_wa -> sg_wb in the current view
 seg_world:
         #VMOV sg_wa, pj_w
@@ -947,11 +970,16 @@ seg_world:
         jmp clip_line
 _r:     rts
 
-; xf_out = wcur.A xf_in + wcur.t
+; xf_out = wcur.A xf_in + wcur.t, but for coordinate xf_skip (project_setup: the one a flat
+; view doesn't show; $ff: none)
 xf_point:
         .for si = 0, si < 3, si += 1
+        lda xf_skip
+        cmp #si
+        beq +
         #DOT wcur+si*12, xf_in, tq
         #ADDQ tq, wcur+36+si*4, xf_out+si*4
++
         .next
         rts
 
@@ -975,12 +1003,19 @@ project_setup:
         sta pj_cy+3
         lda vw_cy,x
         sta pj_cy+2
+        ldy #$ff
+        sty xf_skip
         cpx #3
         beq +
         lda vw_ha,x
         sta pj_ha
         lda vw_va,x
         sta pj_va
+        lda #3                          ; xf_point skips the third coordinate
+        sec
+        sbc pj_ha
+        sbc pj_va
+        sta xf_skip
         txa
         jsr vw_zoom
         #MOVQ tq, pj_zx
@@ -1131,7 +1166,15 @@ cn_norm:
 ; (Cohen-Sutherland), then d6_line
 ;---------------------------------------------------------------------------------------
 clip_line:
-        lda #0
+        jsr cl_ints                     ; both ends inside (their whole pixels)? draw it
+        ldx #0
+        jsr d6_inside
+        bcc +
+        ldx #4
+        jsr d6_inside
+        bcc +
+        jmp d6_line_in
++       lda #0
         sta cl_n
 _loop:
         inc cl_n
@@ -1191,6 +1234,10 @@ _lr:
         jmp _loop
 _out:   rts
 _draw:
+        jsr cl_ints
+        jmp d6_line
+; the ends' whole pixels -> d6_x, d6_y, d6_x1, d6_y1
+cl_ints:
         lda ln_x0+2
         sta d6_x
         lda ln_x0+3
@@ -1207,7 +1254,7 @@ _draw:
         sta d6_y1
         lda ln_y1+3
         sta d6_y1+1
-        jmp d6_line
+        rts
 CL_LEFT         = 1
 CL_RIGHT        = 2
 CL_TOP          = 4
