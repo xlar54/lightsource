@@ -98,8 +98,9 @@ The list shows everything in the scene, in this order:
 
 Click a name to select it. The box at the left of each object shows it in the views
 (filled) or hides it (empty): click the box to change it. Hidden objects aren't drawn or
-picked in the views, but they are still rendered. Hiding a group hides its parts too
-(their names turn grey).
+picked in the views, and they are left out of previews, renders and **Export POV** too, so
+you can try a scene without something and get it back later. Hiding a group hides its
+parts too (their names turn grey); a group whose parts are all hidden is left out.
 
 The list shows 11 rows at a time. Use the scroll bar at its right: click above or below
 the thumb to move a page, or drag the thumb.
@@ -130,6 +131,11 @@ where you type values and file names.
 
 Click near an object's centre, a light or the camera in any view. The nearest one within a
 few pixels is selected. You can also click names in the object list.
+
+What is already selected comes first: a click within reach of it keeps it selected (and
+drags it), even when something else is nearer. A group's parts are often at the group's
+own centre, so this lets you drag a group you picked in the list. To pick one of its parts
+instead, click its name in the list.
 
 ## Moving things
 
@@ -246,6 +252,10 @@ The **Scene** menu arranges the objects:
 - **Indent** puts the selected object into the group just above it.
 - **Outdent** takes it out of its group.
 
+Neither moves anything on screen: the object's position, rotation and scale are worked out
+again for its new group, so if the group is moved, turned or scaled, the numbers in the
+panel change and the object stays where it was. Angles and scales are rounded to 1/256.
+
 ## Deleting and duplicating
 
 - **Edit, Delete** (or **DEL**) removes the selected object, with all its parts if it is a
@@ -301,19 +311,37 @@ objects.
 - Click **Mat** in an object's panel to step through the materials.
 - **Material, Next** and **Material, Previous** do the same for the selected object.
 - **Material, New** makes a copy of the selected object's material, gives it to the object,
-  and opens it for editing.
-- **Material, Edit** opens the selected object's material in the panel. Select an object to
-  go back.
+  and opens it in the material editor.
+- **Material, Edit** opens the selected object's material in the material editor.
+
+## The material editor
+
+The editor takes the whole screen:
+
+- **The preview** (top left) is a ball wearing the material on a checker floor, under a
+  light and against a blue-grey sky, traced by the real renderer at a small size. It is
+  traced again after each change, which takes a few seconds (longer for glass and
+  mirrors).
+- **The settings** (right) are grouped: Name; Colour, with a swatch; Checker and the
+  square size; Colour 2 (the checker's other colour), with a swatch; Finish (Diffuse,
+  Ambient, Phong and Size); Mirror (Reflect); Glass (Transmit and IOR).
+- **Changing a number:** press on it and drag left or right to nudge it (0.01 a pixel for
+  most, 2 for Size), or click it without moving to type a value. Values are kept to
+  sensible limits (colours and most of the finish 0 to 1, IOR 1 to 3).
+- **Presets** set the finish in one go and leave the colours alone: **Matte**,
+  **Plastic**, **Metal**, **Mirror**, **Glass** and **Glow** (lights itself up).
+- **Done** (or RETURN) keeps the changes; **Cancel** (or ESC) puts the material back as
+  it was. Either way you are back in the modeller, and **Edit, Undo** goes back to before
+  the editor.
 
 ## A library of materials
 
 A material can be kept in a file of its own, `NAME.MAT`, and loaded into any document.
 
-- **Material, Save to file...** saves the material being edited (or the selected object's)
-  as `NAME.MAT`. It asks for the name, starting with the material's own.
+- **Material, Save to file...** saves the selected object's material as `NAME.MAT`. It asks for the name, starting with the material's own.
 - **Material, Load from file...** lists the disk's `.MAT` files: click one, or use the
   cursor keys and RETURN. It is added to the document (up to 16 materials), and the
-  selected object takes it. With nothing selected, it opens for editing. **Name...** types
+  selected object takes it. With nothing selected, it shows in the panel. **Name...** types
   a name instead; **Cancel** or ESC goes back. A load can be undone.
 
 The disk comes with a starter set: BRASS, CHECKER (black and white squares), CHROME,
@@ -322,20 +350,23 @@ PLASTIC, RUBBER, TILES (cream and blue squares), WATER and WOOD.
 
 ## Material settings
 
+The same settings, under the editor's names (the properties panel shows a material with
+the short names in brackets):
+
 | Field | Meaning |
 |---|---|
 | Name | Up to 11 characters |
 | R, G, B | Its colour (0 to 1 each) |
-| Dif | Diffuse: how much light it scatters (0.6 is usual) |
-| Pho | Phong: the strength of its highlights |
-| Siz | The size of the highlights: larger numbers give smaller, sharper ones |
-| Amb | Ambient: the light it shows even in shadow |
-| Ref | Reflection: 0 for none, 1 for a perfect mirror |
-| Trn | Transmit: how much light passes through (glass is about 0.8) |
+| Diffuse (Dif) | How much light it scatters (0.6 is usual) |
+| Phong (Pho) | The strength of its highlights |
+| Size (Siz) | The size of the highlights: larger numbers give smaller, sharper ones |
+| Ambient (Amb) | The light it shows even in shadow |
+| Reflect (Ref) | Reflection: 0 for none, 1 for a perfect mirror |
+| Transmit (Trn) | How much light passes through (glass is about 0.8) |
 | IOR | Index of refraction for transparent materials (glass is 1.5, water 1.33) |
-| Checker | yes: a checker pattern of its colour and a second colour |
-| Sq | The checker's square size |
-| R2, G2, B2 | The checker's second colour |
+| Checker (Chk) | yes: a checker pattern of its colour and a second colour |
+| Square (Sq) | The checker's square size |
+| Colour 2 R, G, B (R2, G2, B2) | The checker's second colour |
 
 [SCREENSHOT: material-edit | Editing a material]
 
@@ -543,8 +574,8 @@ must stay below 32767. Keep the scene within about 120 units of the camera.
   lighter look, use a second light with **No shadow**.
 - **Glass looks dark:** raise **Trace** in the world settings so rays get through more
   surfaces (each costs time).
-- **Faster renders:** fewer shapes, fewer lights, and less glass and mirror. Hidden objects
-  still render, so delete what you don't need.
+- **Faster renders:** fewer shapes, fewer lights, and less glass and mirror. Hide what you
+  don't need for now: hidden objects aren't rendered.
 - **Checker floors:** a plane with a **Checker** material and **Sq** of 1 to 2 looks good.
 - **Keep the scene within about 150 units of the camera and the lights.** The tracer's
   numbers can't hold distances much past 180 units, and anything further away comes out

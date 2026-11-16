@@ -208,7 +208,14 @@ wr_obj:
         jsr close_groups                ; those that end before this one
         ldx wr_i
         jsr wr_obj_ptr
-        #WS ws_c                        ; "// name"
+        ldy #O_FLAGS                    ; hidden (the list's box): left out, with all
+        lda (wo),y                      ; that is inside it
+        and #OF_HIDE
+        beq +
+        jsr wr_skip
+        stx wr_i
+        jmp wr_obj
++       #WS ws_c                        ; "// name"
         jsr w_indent
         clc
         lda wo
@@ -225,20 +232,16 @@ wr_obj:
         lda (wo),y
         cmp #OT_GROUP
         bcc _prim
-        ; a group: open it, unless it has nothing in it
+        ; a group: open it, unless nothing in it is shown (no shape, or all hidden)
         ldx wr_i
-        inx
-        cpx doc_nobj
-        bcs _empty
-        txa
-        tax
-        jsr wr_obj_ptr2
-        ldy #O_DEPTH
-        lda (wo2),y
-        cmp wr_d
-        beq _empty
-        bcc _empty
-        ldy #O_TYPE
+        jsr wr_visible
+        bcs +
+        ldx wr_i                        ; (left out, and what is inside it)
+        jsr wr_skip
+        dex
+        stx wr_i
+        bra _empty
++       ldy #O_TYPE
         lda (wo),y
         sec
         sbc #OT_GROUP
@@ -819,6 +822,61 @@ wr_obj_ptr2:
         lda obj_hi,x
         sta wo2+1
         rts
+
+; X = object i -> X = the first object after it and everything inside it
+wr_skip:
+        jsr wr_obj_ptr2
+        ldy #O_DEPTH
+        lda (wo2),y
+        sta wk_d
+-       inx
+        cpx doc_nobj
+        bcs +
+        jsr wr_obj_ptr2
+        ldy #O_DEPTH
+        lda (wo2),y
+        cmp wk_d
+        beq +
+        bcs -                           ; (deeper: inside it)
++       rts
+
+; X = a group -> carry set if a shape inside it is shown (not hidden itself, nor inside a
+; hidden group)
+wr_visible:
+        jsr wr_obj_ptr2
+        ldy #O_DEPTH
+        lda (wo2),y
+        sta wv_d
+        stx wv_k
+_n:     ldx wv_k
+        inx
+_t:     cpx doc_nobj
+        bcs _no
+        stx wv_k
+        jsr wr_obj_ptr2
+        ldy #O_DEPTH
+        lda (wo2),y
+        cmp wv_d
+        beq _no
+        bcc _no                         ; (past the group)
+        ldy #O_FLAGS
+        lda (wo2),y
+        and #OF_HIDE
+        beq _shown
+        ldx wv_k                        ; hidden: not it, nor anything inside it
+        jsr wr_skip
+        bra _t
+_shown: ldy #O_TYPE
+        lda (wo2),y
+        cmp #OT_GROUP
+        bcs _n                          ; (a group: look inside it)
+        sec
+        rts
+_no:    clc
+        rts
+wk_d:           .byte 0
+wv_d:           .byte 0
+wv_k:           .byte 0
 
 ws_head:        .null "// renderer65 modeller: "
 ws_global:      .null "global_settings { max_trace_level "

@@ -25,4 +25,10 @@ lp              = rc_pn                 ; a list or record
 pa              = rc_px                 ; combine: A, B, the result
 pb              = rc_nx
 pd              = rc_ep
+; matedit.asm (overlay 7): the material's record, a field's entry, its place in the record.
+; A preview traces, which uses these too: the editor sets ed_p again after each one, and
+; the others before each use.
+ed_p            = rc_pc
+ed_q            = rc_pn
+ed_vp           = rc_px
         .cerror zp_end > $90, "base page variables overflow into KERNAL space"

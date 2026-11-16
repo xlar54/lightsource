@@ -232,7 +232,7 @@ program renders `SCENE.POV` from the disk at boot and saves `SCENE.IFF`.
 | `$8320000` | A copy of the resident part as loaded (for RUN after Exit) |
 | `$8330000` | The document while a render has its memory |
 | `$8340000` | Undo: 16 snapshots of 16 KB (to `$837FFFF`) |
-| `$8700000` | The overlays (64 KB apart: overlay n at `$87n0000`). Overlay 6's help lines are in its slot past the window's size (`$8765000`) |
+| `$8700000` | The overlays 0-7 (64 KB apart: overlay n at `$87n0000`). Overlay 2's error messages and overlay 6's help lines are in their slots past the window's size (`$8725000`, `$8765000`) |
 
 Materials on their own are `NAME.MAT` (SEQ, 85 bytes): `R65T`, a version byte (1), then the
 material's 80-byte record as in a document (`src/doc.asm` `DM_*`).

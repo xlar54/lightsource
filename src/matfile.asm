@@ -255,6 +255,69 @@ _p:     sta mt_fname,x
         cpx #0
         rts
 
+;---------------------------------------------------------------------------------------
+; ed_doc: the material editor's preview scene, made over the document (parked in attic
+; by modes.asm ed_trace): a checker floor, a ball wearing material ed_n (copied from the
+; parked document), a light and a dim fill light, a blue-grey background
+;---------------------------------------------------------------------------------------
+ED_HDR          = doc_objs - doc_start
+ed_doc:
+        jsr doc_default                 ; (all of it zero, and the usual header)
+        #DT_COPY ed_hdr, doc_start, ED_HDR
+        #DT_COPY ed_objs, doc_objs, ed_objs_end - ed_objs
+        #DT_COPY ed_mats, doc_mats, DMAT_SIZE
+        #DT_COPY ed_lights, doc_lights, ed_lights_end - ed_lights
+        ldx ed_n                        ; the material: from the parked document
+        sec
+        lda dmat_lo,x
+        sbc #<doc_start
+        sta tmp0
+        lda dmat_hi,x
+        sbc #>doc_start
+        sta tmp0+1
+        clc
+        lda tmp0
+        adc #<DOC_PARK
+        sta dmaj_src
+        lda tmp0+1
+        adc #>DOC_PARK
+        sta dmaj_src+1
+        lda #(DOC_PARK >> 16) & $0f
+        sta dmaj_src_bank
+        lda #DOC_PARK >> 20
+        sta dmaj_src_mb
+        lda #<(doc_mats + DMAT_SIZE)
+        sta dmaj_dst
+        lda #>(doc_mats + DMAT_SIZE)
+        sta dmaj_dst+1
+        lda #0
+        sta dmaj_dst_bank
+        sta dmaj_dst_mb
+        lda #<DMAT_SIZE
+        sta xc_n
+        lda #0
+        sta xc_n+1
+        jmp xcopy
+        .cerror ((DOC_PARK & $ffff) + DOC_SIZE) > $10000, "ed_doc: the parked document crosses a bank"
+
+ed_hdr:
+        .text "R65M"
+        .byte DOC_VERSION, 2, 2, 2      ; version, objects, materials, lights
+        .dint FXV((0, 1.5, -5.2)), FXV((0, 0.9, 0)), FX(50)
+        .dint FXV((0.32, 0.42, 0.58))
+        .byte 4
+        .cerror * - ed_hdr != ED_HDR, "the preview's header"
+ed_objs:
+        #DOBJ OT_PLANE, 0, 1, "Floor", (0, 0, 0), (0, 0, 0), 1
+        #DOBJ OT_SPHERE, 0, 2, "Ball", (0, 1, 0), (0, 0, 0), 1, 1
+ed_objs_end:
+ed_mats:
+        #DMATR "Floor", (0.85, 0.85, 0.85), (0.22, 0.22, 0.28), 1, 1, 40, 0.15, 0.7, 0, 0, 0, 1
+ed_lights:
+        #DLIT (-6, 8, -7), (1, 1, 1), 0
+        #DLIT (6, 4, -5), (0.3, 0.3, 0.35), 1
+ed_lights_end:
+
 mt_tag:         .text "R65T"
                 .byte MT_VERSION
 ext_mat:        .null ".MAT"

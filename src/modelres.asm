@@ -403,18 +403,13 @@ cmd_matnew:
         clc
         adc #1
         sta (op),y
-+       lda ca_k
-        ora #$c0
-        sta ms_sel
-        lda #<st_matedit
-        ldx #>st_matedit
-        jmp say
++       lda ca_k                        ; the editor, for the new one (its undo is kept)
+        jmp ed_open
 _full:  lda #<st_mfull
         ldx #>st_mfull
         jmp say
 st_newmat:      .null "New ?"
 st_mfull:       .null "No room for more materials (16)"
-st_matedit:     .null "Editing the material: select an object to go back"
 
 ; Material: Edit - the selected object's material in the properties panel
 cmd_matedit:
@@ -431,11 +426,10 @@ cmd_matedit:
         beq _none
         sec
         sbc #1
-        ora #$c0
-        sta ms_sel
-        lda #<st_matedit
-        ldx #>st_matedit
-        jmp say
+        pha                             ; (an undo step for what the editor changes)
+        jsr u_save
+        pla
+        jmp ed_open
 _none:  lda #<st_nomat
         ldx #>st_nomat
         jmp say

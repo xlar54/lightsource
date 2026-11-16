@@ -59,7 +59,8 @@ the file the same empty scene is built in. Whatever it loads, the document is na
   it), then the lights and the camera. Click one to select it.
   The box at the left of each object shows it in the views (filled) or hides it (empty):
   click the box to change it. A hidden group hides its parts (their names go grey), and
-  hidden objects can't be picked in the views. Renders and previews still have them.
+  hidden objects can't be picked in the views. They are left out of renders, previews and
+  exported `.POV` files too (a group with nothing shown in it is left out as well).
   It is saved with the document.
   The scroll bar at the list's right: click above or below the thumb for a page, or drag
   the thumb. The list only jumps to the selection when the selection changes.
@@ -68,7 +69,9 @@ the file the same empty scene is built in. Whatever it loads, the document is na
   name to rename the object, or the material to step to the next one.
 - **Click a view's name** (its top-left corner) to make it fill the whole view area; click
   the name again for the four views.
-- **Mouse in the views:** click near an object's centre, a light or the camera to select it.
+- **Mouse in the views:** click near an object's centre, a light or the camera to select it
+  (what is already selected wins when it is within reach, so a group picked in the list can
+  be dragged even when its parts sit at its centre).
   Drag to move it in that view's plane (inside a turned or scaled group it still follows
   the pointer). SHIFT-drag turns an object about the axis the view looks along (top: RY,
   front: RZ, side: RX), CTRL-drag changes its scale S. View, Snap (G) makes drags snap:
@@ -84,15 +87,19 @@ the file the same empty scene is built in. Whatever it loads, the document is na
     moving, typed values, materials, corners, the show / hide boxes, New and Open - keeps
     a snapshot in attic first), Delete, Duplicate.
   - **Scene:** Move up and down (inside a Difference this picks what is cut from what),
-    Indent (into the group above), Outdent, and World... (the background colour, BgR /
+    Indent (into the group above), Outdent (both keep the object where it is: its
+    position, rotation and scale are worked out again in the new group's frame, with an
+    arctangent found by halving on sin and cos), and World... (the background colour, BgR /
     BgG / BgB, and Trace: POV-Ray's `max_trace_level`). World is also the first entry in
     the list, above the objects.
   - **Add:** the six primitives, a lathe, a light, a spotlight (aimed at the origin; any
     light becomes one with Spot in the panel: AX / AY / AZ, Rad, Fal, Tgt), and the four
     booleans. A new boolean takes the
     selected object into itself, placed where that object was (so nothing moves).
-  - **Material:** Next, Previous, New (a copy), Edit (the properties panel then shows the
-    material), Save to file... and Load from file... (a material on its own, `NAME.MAT`: a
+  - **Material:** Next, Previous, New (a copy, opened in the editor), Edit (the material
+    editor: its own screen with a preview ball traced small by the real tracer, the
+    settings grouped with colour swatches, numbers dragged or typed, presets Matte /
+    Plastic / Metal / Mirror / Glass / Glow, Done or Cancel), Save to file... and Load from file... (a material on its own, `NAME.MAT`: a
     library to share between documents; the disk has 15 to start with, from glass and
     gold to checker floors. A loaded one is added to the document and the selected object
     takes it).
@@ -215,7 +222,7 @@ The limits:
 Architecture
 ------------
 
-One assembly makes the resident program and seven overlays. `build.bat` writes each section
+One assembly makes the resident program and eight overlays. `build.bat` writes each section
 to its own file, and `tools/cut.py` trims each one. At boot the overlays are loaded into
 attic; `ovl_load` copies one into the window at `$8000-$CFFF` when it's needed.
 
@@ -225,6 +232,13 @@ before it copies the other one in, so both keep their variables, and calls can n
 Y and the flags go through. A swap is two 20 KB DMA copies, too quick to measure in a
 redraw. Neither overlay may use the other's labels directly, which the assembler can't see
 (one symbol table): `python private/tools/ovl_check.py` lists any that do.
+
+The material editor is overlay 7, reached the same way (`#FAR OVL_MATED, mat_editor`).
+Its preview calls the resident `ed_trace`, which swaps the editor out (written back, so it
+keeps its state), parks the document, builds a small scene over it (overlay 5 `ed_doc`: a
+floor and a ball wearing the material), writes and parses it, traces every 3rd pixel and
+line into the editor's window (overlay 0 `render_window`, a 6x6x6 cube in palette entries
+16-231 beside the GUI's 0-15), puts the document back and loads the editor again.
 
 | Part | Files | What |
 |---|---|---|
@@ -236,6 +250,7 @@ redraw. Neither overlay may use the other's labels directly, which the assembler
 | Overlay 4 | `model.asm`, `model2.asm`, `model3.asm`, `model4.asm` | The modeller: views, wireframes, the grid, list, commands, undo |
 | Overlay 5 | `writer.asm`, `doctiny.asm`, `matfile.asm` | The document as scene text; `.MDL`, `.POV` and `.MAT` files; the Open dialog (the disk's directory, for documents or materials) |
 | Overlay 6 | `modelpanel.asm`, `modelhelp.asm` | The modeller's properties panel; the prompts' help lines (past the window's end in the file: they stay in attic) |
+| Overlay 7 | `matedit.asm` | The material editor |
 | Resident | `gui.asm`, `doc.asm`, `modelst.asm`, `modes.asm`, `modelres.asm` | The toolkit (palette, pointer, events, menus, typing, numbers); the document; the modeller's lasting state; render and file commands; the modeller's menus, mouse drags and material commands |
 
 New library modules:

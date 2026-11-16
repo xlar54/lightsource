@@ -104,6 +104,113 @@ _pix:
 pr_x:           .word 0
 
 ;---------------------------------------------------------------------------------------
+; render_window: the whole picture, every 3rd pixel of every 3rd line (so it keeps its
+; shape), as single pixels at (RW_X, RW_Y): 213 x 67, dithered to the 6x6x6 cube at palette
+; entries 16..231 (the material editor sets those; the GUI keeps 0..15)
+;---------------------------------------------------------------------------------------
+RW_X            = 12
+RW_Y            = 22
+RW_W            = 213
+RW_H            = 67
+render_window:
+        jsr hot_fill
+        lda #0
+        sta fr_sp
+        jsr d6_clip_all
+        lda #1
+        sta px_y
+        lda #RW_Y
+        sta d6_y
+_row:
+        lda #1
+        sta px_x
+        lda #0
+        sta px_x+1
+        sta d6_y+1
+        sta d6_x+1
+        lda #RW_X
+        sta d6_x
+_pix:
+        jsr trace_pixel
+        jsr cube216
+        sta d6_col
+        jsr d6_plot
+        inc d6_x
+        bne +
+        inc d6_x+1
++       clc
+        lda px_x
+        adc #3
+        sta px_x
+        bcc +
+        inc px_x+1
++       lda px_x+1                      ; (up to 637)
+        cmp #>640
+        bcc _pix
+        lda px_x
+        cmp #<640
+        bcc _pix
+        inc d6_y
+        clc
+        lda px_y
+        adc #3
+        sta px_y
+        cmp #200
+        bcc _row
+        rts
+
+; cube216: out_r/g/b at window pixel (d6_x, d6_y) -> A = 16 + 36 r + 6 g + b, 4x4 dither
+cube216:
+        lda d6_y
+        and #3
+        asl
+        asl
+        sta ci_t
+        lda d6_x
+        and #3
+        ora ci_t
+        tax
+        lda bayer4,x
+        sta ci_t
+        ldx out_r
+        lda cube_q5,x
+        clc
+        adc ci_t
+        lsr
+        lsr
+        lsr
+        lsr
+        tay
+        lda mul36,y
+        sta ci_acc
+        ldx out_g
+        lda cube_q5,x
+        clc
+        adc ci_t
+        lsr
+        lsr
+        lsr
+        lsr
+        tay
+        lda mul6,y
+        clc
+        adc ci_acc
+        sta ci_acc
+        ldx out_b
+        lda cube_q5,x
+        clc
+        adc ci_t
+        lsr
+        lsr
+        lsr
+        lsr
+        clc
+        adc ci_acc
+        adc #16
+        rts
+mul36:          .byte 0, 36, 72, 108, 144, 180
+
+;---------------------------------------------------------------------------------------
 ; render: trace every pixel, top to bottom
 ;---------------------------------------------------------------------------------------
 render:

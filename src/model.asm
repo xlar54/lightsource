@@ -375,8 +375,10 @@ _pick:
         lda #$ff
         sta ms_ptobj
         ; the nearest thing within 10 pixels of the click: objects' origins, lights, camera
+        ; (but the selection, if it is within them: a group's parts are often where it is)
         lda #$ff
         sta pk_best
+        sta pk_sel
         lda #100
         sta pk_bd
         lda #0
@@ -444,13 +446,17 @@ _cam:
         cmp #$ff
         beq +
         jmp aim_pick
-+       lda pk_best
++       lda pk_sel
+        cmp #$ff
+        bne _picked
+        lda pk_best
         cmp #$ff
         bne _picked
         lda ms_dview                    ; nothing, in the camera view: turn the camera
         cmp #3
-        bne +
-        jmp cam_orbit_start
+        beq +
+        jmp redraw_work                 ; (elsewhere: nothing changes. Not "bne +": a +
++       jmp cam_orbit_start             ;  label further on would catch it)
 _picked:
         ldx #0                          ; a spotlight's aim point: the light, its aim dragged
         cmp #$60
@@ -522,6 +528,7 @@ _none:  lda #<st_noaiml
 st_aimedl:      .null "The spotlight aims at it"
 st_noaiml:      .null "Aim light: nothing there, nothing changed"
 ap_l:           .byte 0
+pk_sel:         .byte 0                 ; the selection, if a click was within its reach
 
 ; pk_w (world) seen in view ms_dview: if it's nearer the click than pk_bd, pk_i is it
 pk_try:
@@ -550,7 +557,11 @@ pk_try:
         lda tmp1
 +       cmp #10
         bcs _r
-        cmp pk_bd
+        ldx pk_i                        ; (the selection is within reach: it wins)
+        cpx ms_sel
+        bne +
+        stx pk_sel
++       cmp pk_bd
         bcs _r
         sta pk_bd
         lda pk_i

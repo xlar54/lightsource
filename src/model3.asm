@@ -1136,6 +1136,22 @@ st_lfull:       .null "No room for more lights (16)"
 new_light:      #DLIT (10, 20, -10), (1, 1, 1), 0
 al_spot:        .byte 0
 
+; ed_open: A = a material: the material editor (overlay 7, its own screen), then the
+; modeller drawn again
+ed_open:
+        sta ed_n
+        #FAR OVL_MATED, mat_editor
+        lda #<st_edkept
+        ldx #>st_edkept
+        bcc +
+        lda #<st_edcancel
+        ldx #>st_edcancel
++       sta ms_msg
+        stx ms_msg+1
+        jmp redraw_all
+st_edkept:      .null "The material is changed (Edit, Undo goes back)"
+st_edcancel:    .null "The material is as it was"
+
 ; View, Aim light: a light selected, the next click in a view picks what it aims at
 ; (model.asm aim_pick)
 cmd_aimlight:
@@ -1452,6 +1468,8 @@ _out:
         lda ca_d
         beq _no
 _go:
+        lda ca_s                        ; (where it is in the world, to keep it there)
+        jsr kp_before
         lda ca_s
         jsr sub_end
         sta ca_e
@@ -1468,6 +1486,7 @@ _go:
         inx
         cpx ca_e
         bne -
+        jsr kp_after                    ; its place, turn and scale in the new group
         jmp redraw_work
 _no:    lda #<st_cantdepth
         ldx #>st_cantdepth

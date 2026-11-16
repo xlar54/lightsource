@@ -121,6 +121,28 @@ _back:
         ldx dc_m+1
         rts
 
+; ed_trace: the material editor's preview of material ed_n (overlay 7 calls it; it is
+; written back to attic first and loaded again after, so it keeps its state). The document
+; is parked; a small scene wearing the material is made over it (matfile.asm ed_doc),
+; written, parsed and traced into the editor's window (render.asm render_window).
+ed_trace:
+        lda #OVL_WRITE
+        jsr ovl_swap
+        jsr doc_park
+        jsr ed_doc
+        jsr write_pov
+        lda #OVL_PARSE
+        jsr ovl_load
+        jsr parse_text
+        bcs +
+        lda #OVL_TRACE
+        jsr ovl_load
+        jsr render_window
++       jsr doc_unpark
+        lda #OVL_MATED
+        jmp ovl_load
+ed_n:           .byte 0
+
 ; doc_new: a new document: DEFAULT.MDL from the disk, or if it can't be read the built-in
 ; one (overlay 5); named SCENE either way. Then the modeller's overlay again.
 doc_new:

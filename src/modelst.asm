@@ -31,3 +31,6 @@ ms_name:        .null "SCENE"           ; the document's name (files: NAME.MDL, 
 ; shared by overlays 4 and 6 (the panel shows and edits them)
 pt_cur:         .fill 8                 ; the picked corner (x, z), from the pool
 pk_w:           .fill 12
+at_x:           .dword 0                ; fatan2 (overlay 6): at_r = atan2(at_y, at_x)
+at_y:           .dword 0
+at_r:           .dword 0

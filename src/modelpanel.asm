@@ -617,6 +617,69 @@ st_pname:       .null "Name: "
 st_notnum:      .null "That isn't a number"
 
 
+;---------------------------------------------------------------------------------------
+; fatan2 (model4.asm kp_atan calls it): at_r = atan2(at_y, at_x) in degrees (16.16, -180 .. 180), by halving 0 .. 90 on
+; sin and cos (20 steps: within 0.0001 degrees)
+;---------------------------------------------------------------------------------------
+fatan2:
+        #ABSQ at_y, at_ay
+        #ABSQ at_x, at_ax
+        lda at_ay
+        ora at_ay+1
+        ora at_ay+2
+        ora at_ay+3
+        ora at_ax
+        ora at_ax+1
+        ora at_ax+2
+        ora at_ax+3
+        bne +
+        #MOVQ q_zero, at_r
+        rts
++       #MOVQ q_zero, at_lo
+        #LDIMM 90 * ONE, at_hi
+        lda #20
+        sta at_k
+_step:  #ADDQ at_lo, at_hi, at_m        ; m = (lo + hi) / 2: sin m |x| - cos m |y|
+        #ASRQ_Q
+        stq at_m
+        stq fs_a
+        jsr fsin_deg
+        stq at_s
+        #MOVQ at_m, fs_a
+        jsr fcos_deg
+        stq at_c
+        #FMUL at_s, at_ax, at_s
+        #FMUL at_c, at_ay, at_c
+        #SUBQ at_s, at_c, tq
+        bit tq+3
+        bmi _lo
+        #MOVQ at_m, at_hi
+        bra _n
+_lo:    #MOVQ at_m, at_lo
+_n:     dec at_k
+        bne _step
+        #ADDQ at_lo, at_hi, tq
+        #ASRQ_Q
+        stq tq
+        bit at_x+3                      ; x < 0: 180 - t
+        bpl +
+        #LDIMM 180 * ONE, at_m
+        #SUBQ at_m, tq, tq
++       bit at_y+3                      ; y < 0: -t
+        bpl +
+        #NEGQ tq, tq
++       #MOVQ tq, at_r
+        rts
+
+at_ax:          .dword 0
+at_ay:          .dword 0
+at_lo:          .dword 0
+at_hi:          .dword 0
+at_m:           .dword 0
+at_s:           .dword 0
+at_c:           .dword 0
+at_k:           .byte 0
+
 ; help_prompt: X = a property field (prop_click) -> A/X = what it means (its help line,
 ; modelhelp.asm, copied from this overlay's file in attic: the line's number is the byte before the
 ; field's label)

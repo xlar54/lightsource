@@ -124,19 +124,36 @@ Modeller: still to do
 - [x] Menus, the Open list and the status-line prompt restore what was under them instead
   of redrawing the screen (tested: the screen after all of them matches one without them).
 - [x] File, Exit (back to BASIC through kstream; tested in Xemu: READY. comes back).
-- [x] Show / hide each object in the views (a box in the list; tested in Xemu: hiding a group hides its parts, hidden objects aren't picked, the export still has them).
-- [ ] Hide objects from renders too (a second box, or a menu item).
+- [x] Show / hide each object in the views (a box in the list; tested in Xemu: hiding a group hides its parts, hidden objects aren't picked).
+- [x] Picking in the views prefers the selection when it is within reach (dragging a union
+  picked in the list grabbed a part at its centre instead). Tested in Xemu: a union with a
+  box at its centre, dragged 20 pixels: the union moved 2 units, the box's own position
+  stayed 0. Also fixed: a click on nothing in a flat view selected the object numbered as
+  the view (an anonymous + label caught the branch). Overlay 4 has about 55 bytes left.
+- [x] Indent and Outdent keep the object where it is (they moved it
+  when the group was moved, turned or scaled). Tested in Xemu: a sphere taken out of a
+  union at (3, 0, 0), turned 30 about y, scaled 2, then put back: its world matrix the
+  same, bit for bit, both ways, and its numbers back to (1, 2, 3), 0, 1. Overlay 4 has
+  about 80 bytes left; the arctangent is in overlay 6 (`fatan2`).
+- [ ] Hidden objects left out of renders, previews and exports too (the same box; not
+  committed yet). Tested in Xemu: a hidden union and its box left out; a union whose only
+  part is hidden left out; nothing hidden, the text as before.
 - [ ] Save as: the same list, to pick a name to replace (now typed only).
 - [ ] File, Render POV...: render a `.POV` file from the disk (the parser and tracer can).
 - [ ] Reading `.POV` files into the modeller (at least the ones it writes itself).
 - [ ] A material list to pick from (now Next / Previous).
-- [ ] Material files (not committed yet): Material, Save to file... / Load from file...
+- [x] Material files: Material, Save to file... / Load from file...
   (`NAME.MAT`: "R65T", version 1, the 80-byte record; `src/matfile.asm`, overlay 5), and
   15 starter materials on the disk. Tested in Xemu by injected events: the list, a load
   (the selected object takes it), save under a new name and load that back, undo, ESC
   (no undo step left behind), File, Open unchanged.
-- [ ] The material editor: its own screen (overlay 7) with a preview sphere traced small,
-  the fields grouped, a colour swatch, numbers nudged by dragging, presets.
+- [x] The material editor: its own screen (overlay 7) with a preview
+  ball traced small by the real tracer, the fields grouped, colour swatches, numbers dragged
+  or typed, presets, Done / Cancel. Tested in Xemu by injected events: the screen and
+  preview, a preset, a drag, a typed value, the checker toggle, Done, Cancel (the material
+  back as it was), Material, New into the editor, and a render after (every pixel
+  matched the models).
+  - Ideas: a bigger preview; a colour picker; the editor for lights' colours too.
 
 Was in the plan (kept for reference)
 ------------------------------------

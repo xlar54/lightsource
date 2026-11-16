@@ -61,7 +61,8 @@ OVL_SAVE        = 3
 OVL_MODEL       = 4
 OVL_WRITE       = 5
 OVL_PANEL       = 6                     ; the modeller's properties panel (ovl_far)
-OVL_COUNT       = 7
+OVL_MATED       = 7                     ; the material editor (ovl_far)
+OVL_COUNT       = 8
         .cerror ((OVL_ATTIC >> 16) & $0f) != 0 || OVL_COUNT > 16, "ovl_swap: overlay n in attic bank n"
 
 ; a call into another overlay: A, X, Y and the flags go through both ways (ovl_far)
@@ -90,6 +91,8 @@ MOUSE_MAX_X     = 639
         .dsection ovl5
         * = $160000
         .dsection ovl6
+        * = $170000
+        .dsection ovl7
 
 ;=======================================================================================
 ; the resident part
@@ -597,3 +600,12 @@ ovl6_end:
         .include "modelhelp.asm"        ;  stay in attic)
         .endlogical
         .send ovl6
+
+        .section ovl7
+        .word 0
+        .logical OVL_BASE
+        .include "matedit.asm"
+        .cerror * > OVL_END, "overlay 7 is too big: ", format("$%04x", *)
+ovl7_end:
+        .endlogical
+        .send ovl7
