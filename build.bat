@@ -5,7 +5,7 @@ REM Rename PROJECT for a new project. The disk's first file is AUTOBOOT.C65, a o
 REM BASIC program (10 RUN "PROJECT", from tools\autoboot.py): Xemu -autoload runs the first
 REM file and a real MEGA65 runs AUTOBOOT.C65 at power-on, so both start the game, which is
 REM on the disk only once.
-set PROJECT=renderer65
+set PROJECT=lightsource
 if not exist target mkdir target
 REM c1541 writes its settings under the user profile: keep them inside target\
 if not exist target\userprofile\AppData\Roaming mkdir target\userprofile\AppData\Roaming
@@ -21,6 +21,10 @@ REM Assets: src\assets (PNG sheets, asm tables) -> src\gen\*, target\assets\*. U
 REM the project has src\assets (tools\build_assets.py is a starting point):
 REM python tools\build_assets.py
 REM if errorlevel 1 exit /b 1
+
+REM the build date for Help, About (src\gen\build.asm)
+python tools\build_info.py
+if errorlevel 1 exit /b 1
 
 REM M65DEFS: extra 64tass defines for test builds, e.g. set M65DEFS=-D DBG_ROWS=8 -D DBG_PASS2=0
 REM One assembly, one file per section: the resident program and the overlays (main.asm).

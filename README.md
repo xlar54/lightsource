@@ -1,10 +1,11 @@
-renderer65
-==========
+Lightsource
+===========
 
 A ray tracer for the MEGA65 that reads scenes written in a subset of POV-Ray's scene language.
-It began as a port of [ssloy/tinyraytracer](https://github.com/ssloy/tinyraytracer). The plan
-is a whole system on the MEGA65: a 640x200 graphical modeller, the scene language, rendering,
-and saving the picture (see [docs/DESIGN.md](docs/DESIGN.md)).
+It is built on the standard, openly published ray-tracing methods (ray-shape intersection,
+Phong shading, shadow rays, reflection and refraction). The plan is a whole system on the MEGA65: a 640x200 graphical modeller, the scene language, rendering,
+and saving the picture (see [docs/DESIGN.md](docs/DESIGN.md)). It was called renderer65
+until November 2026.
 
 What works now:
 - **The scene language:** spheres, boxes, cylinders, cones, planes and prisms; `union`, `merge`,
@@ -48,15 +49,18 @@ A 640x200 interface in 256 colours, used with the mouse and keyboard. It starts 
 `DEFAULT.MDL` from the disk (File, New loads it too): no objects, the camera up and back at
 (7, 5.5, -9) looking down at the origin (where Add puts new objects), one light and one white material. Save as `DEFAULT` to change it; without
 the file the same empty scene is built in. Whatever it loads, the document is named
-`SCENE`. tinyraytracer's scene, the old default, is `TINYRAY.MDL`.
+`SCENE`. `SPHERES.MDL` is five balls (glass, gold, jade, chrome, coral) on a tiled floor at
+dusk; `scenes/default.pov` is the same scene as text, for the tests.
 
 - **Views:** top, front and side (orthographic) and the camera's (in perspective), all
   wireframes. The selected object is yellow, and a selected group shows all its parts.
-  Lights are orange crosses; the camera is a green cross with a line to where it looks.
+  Lights are orange crosses; the camera is a small green triangle, its point at the camera and its open end
+  towards where it looks (selected: yellow, with a line to that point and a cross there
+  that drags where it looks).
   A spotlight also has a line to its aim point (a cross: drag it to re-aim the light) and
   its cone out to there: four lines and a ring at the falloff angle.
 - **Object list** (top right): objects as an outline (a group's parts are indented under
-  it), then the lights and the camera. Click one to select it.
+  it and hang from a tree line, an L before each name), then the lights and the camera. Click one to select it.
   The box at the left of each object shows it in the views (filled) or hides it (empty):
   click the box to change it. A hidden group hides its parts (their names go grey), and
   hidden objects can't be picked in the views. They are left out of renders, previews and
@@ -70,8 +74,9 @@ the file the same empty scene is built in. Whatever it loads, the document is na
 - **Click a view's name** (its top-left corner) to make it fill the whole view area; click
   the name again for the four views.
 - **Mouse in the views:** click near an object's centre, a light or the camera to select it
-  (what is already selected wins when it is within reach, so a group picked in the list can
-  be dragged even when its parts sit at its centre).
+  (what is already selected wins when it is within reach). With a group selected, pressing
+  on any of its parts drags, turns (SHIFT) or scales (CTRL) the whole group; a click on a
+  part without moving selects that part.
   Drag to move it in that view's plane (inside a turned or scaled group it still follows
   the pointer). SHIFT-drag turns an object about the axis the view looks along (top: RY,
   front: RZ, side: RX), CTRL-drag changes its scale S. View, Snap (G) makes drags snap:
@@ -110,6 +115,8 @@ the file the same empty scene is built in. Whatever it loads, the document is na
     away as it was); Snap; Grid (on at the start: lines in the top, front and side views
     every 0.25, 0.5, 1, 2, 5, 10, 20, 50 or 100 units, the smallest step that leaves 12
     pixels or more between them at the zoom).
+  - **Help:** About... (a box with the version and the build date; a click or a key
+    closes it).
 - **Prisms** are the shape with points to edit. The selected prism has a handle on each
   corner in the top, front and side views (at its top). Click one to pick it (it fills
   in, and the panel shows its CX and CZ), and drag it to move it. I adds a corner half way
@@ -166,12 +173,16 @@ How the scene text is written:
 Build and run
 -------------
 
-- `build.bat` assembles everything with 64tass and writes `target/renderer65.d81`. The disk
+- `build.bat` assembles everything with 64tass and writes `target/lightsource.d81`. The disk
   holds:
   - the program and its overlays;
   - every scene in `scenes/`, with `scenes/default.pov` also written as `SCENE.POV`;
   - the starter materials, `scenes/*.mat` (made by `private/tools/make_mdl.py mats`).
 - `run.bat` builds and starts Xemu.
+- The version number is `LS_VERSION` in `src/version.asm` (0.9 now). `tools/build_info.py`
+  writes the build date into `src/gen/build.asm` on every build. Help, About shows both.
+- The manual, `docs/modeller-manual.pdf`, is made from `docs/manual/modeller.md` and the
+  screenshots in `docs/manual/shots/`.
 
 At boot the program starts the modeller. A test build with `-D DBG_BOOTRENDER=1` renders
 `SCENE.POV` instead and saves `SCENE.IFF`. To render another scene that way, set
@@ -249,7 +260,7 @@ line into the editor's window (overlay 0 `render_window`, a 6x6x6 cube in palett
 | Overlay 3 | `save.asm` | IFF ILBM files |
 | Overlay 4 | `model.asm`, `model2.asm`, `model3.asm`, `model4.asm` | The modeller: views, wireframes, the grid, list, commands, undo |
 | Overlay 5 | `writer.asm`, `doctiny.asm`, `matfile.asm` | The document as scene text; `.MDL`, `.POV` and `.MAT` files; the Open dialog (the disk's directory, for documents or materials) |
-| Overlay 6 | `modelpanel.asm`, `modelhelp.asm` | The modeller's properties panel; the prompts' help lines (past the window's end in the file: they stay in attic) |
+| Overlay 6 | `modelpanel.asm`, `modelhelp.asm`, `about.asm` | The modeller's properties panel; the prompts' help lines (past the window's end in the file: they stay in attic); Help, About |
 | Overlay 7 | `matedit.asm` | The material editor |
 | Resident | `gui.asm`, `doc.asm`, `modelst.asm`, `modes.asm`, `modelres.asm` | The toolkit (palette, pointer, events, menus, typing, numbers); the document; the modeller's lasting state; render and file commands; the modeller's menus, mouse drags and material commands |
 
@@ -287,16 +298,14 @@ disk calls after the takeover need it.
 All of these match for the default, shapes and full-syntax test scenes. Nothing has been run
 on a real MEGA65 yet.
 
-Differences from tinyraytracer
-------------------------------
+Rendering notes
+---------------
 
-- **Resolution and framing:** 640x200 instead of 1024x768. The rays allow for the PAL pixel
-  shape (1.875 times taller than wide).
-- **Coordinates:** POV-Ray's, left-handed: the scene looks along +z. The default scene's z is
-  negated to match.
-- **Fixed point instead of float.** A ray remembers the primitive it leaves: for that
+- **Resolution and framing:** 640x200. The rays allow for the PAL pixel shape (1.875 times
+  taller than wide).
+- **Coordinates:** POV-Ray's, left-handed: the scene looks along +z.
+- **Fixed point, not floating point.** A ray remembers the primitive it leaves: for that
   primitive, the root nearest zero is set to zero exactly, so the ray can't hit it again.
-- **The board** is a thin slab (a plane intersected with a box) instead of a rectangle.
 - **256 colours:** a palette made for the picture, with error diffusion.
 
 Bundled tools

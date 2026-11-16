@@ -11,6 +11,7 @@ CMD_EXPORT      = 5
 CMD_RENDER      = 6
 CMD_PREVIEW     = 7
 CMD_EXIT        = 8
+CMD_ABOUT       = 9                     ; Help, About (about.asm, overlay 6)
 CMD_DELETE      = 10
 CMD_DUP         = 11
 CMD_UP          = 12
@@ -56,6 +57,75 @@ tn8:    .null "Intersection"
 tn9:    .null "Difference"
 
 ;=======================================================================================
+; list_l: A = an object's depth (1 or more): an L in the column before its name, from the
+; gap above the row down to its middle and across to the name; when the object above is
+; at its depth or deeper (not its group), up to that row's L too, so the parts of a group
+; hang from one line (d6_col and d6_y kept)
+list_l:
+        sta ll_d
+        clc
+        adc #LIST_COL - 1
+        ldx #0
+        stx tmp0
+        asl
+        rol tmp0
+        asl
+        rol tmp0
+        asl
+        rol tmp0
+        clc
+        adc #3
+        sta d6_x
+        lda tmp0
+        adc #0
+        sta d6_x+1
+        clc
+        lda d6_x
+        adc #4
+        sta d6_x1
+        lda d6_x+1
+        adc #0
+        sta d6_x1+1
+        lda d6_col
+        pha
+        lda #GC_FRAME
+        sta d6_col
+        lda #0
+        sta d6_y+1
+        sta d6_y1+1
+        lda dl_y
+        dec a
+        sta d6_y
+        clc
+        adc #4
+        sta d6_y1
+        lda dl_r                        ; (not on the list's first row)
+        beq _up
+        ldx dl_e
+        beq _up
+        dex
+        lda obj_lo,x
+        sta pa
+        lda obj_hi,x
+        sta pa+1
+        ldy #O_DEPTH
+        lda (pa),y
+        cmp ll_d
+        bcc _up
+        lda dl_y                        ; up to the L above
+        sec
+        sbc #6
+        sta d6_y
+_up:    jsr d6_vline
+        lda d6_y1
+        sta d6_y
+        jsr d6_hline
+        pla
+        sta d6_col
+        lda dl_y
+        sta d6_y
+        rts
+
 ; the object list: objects (indented by depth), lights, the camera
 ;=======================================================================================
 list_count:                             ; A = entries
@@ -194,9 +264,13 @@ _row:
         beq +
         lda #GC_LIGHT
         sta d6_col
-+       ldy #O_DEPTH
++       ldy #O_DEPTH                    ; indented: an L before the name (a tree)
         lda (op),y
-        clc
+        beq +
+        jsr list_l
+        ldy #O_DEPTH
+        lda (op),y
++       clc
         adc d6_tc
         sta d6_tc
         clc
@@ -540,6 +614,10 @@ model_cmd:
 +       cmp #CMD_AIMLIGHT
         bne +
         jmp cmd_aimlight
++       cmp #CMD_ABOUT
+        bne +
+        #FAR OVL_PANEL, about_box
+        rts
 +       cmp #CMD_ADD
         bcc +
         cmp #CMD_ADD + OT_DIFF + 1
@@ -1468,8 +1546,9 @@ _out:
         lda ca_d
         beq _no
 _go:
-        lda ca_s                        ; (where it is in the world, to keep it there)
-        jsr kp_before
+        jsr world_all                   ; (where it is in the world, to keep it there:
+        lda ca_s                        ;  modelpanel.asm)
+        #FAR OVL_PANEL, kp_before
         lda ca_s
         jsr sub_end
         sta ca_e
@@ -1486,7 +1565,7 @@ _go:
         inx
         cpx ca_e
         bne -
-        jsr kp_after                    ; its place, turn and scale in the new group
+        #FAR OVL_PANEL, kp_after        ; its place, turn and scale in the new group
         jmp redraw_work
 _no:    lda #<st_cantdepth
         ldx #>st_cantdepth
@@ -1517,6 +1596,7 @@ ca_n:           .byte 0
 ca_k:           .byte 0
 cd_dir:         .byte 0
 sw_buf:         .fill OBJ_SIZE
+ll_d:           .byte 0
 pk_best:        .byte 0
 pk_bd:          .byte 0
 pk_i:           .byte 0
@@ -1542,6 +1622,7 @@ wstk:           .fill 48 * 10           ;  runs. world_all fills these on every 
 wm:             .fill 48 * DOC_MAXOBJ
         .cerror * > $1600, "the modeller's buffers run into kstream's"
         .endv
+        .cerror wm != KP_WM, "modelpanel.asm KP_WM: where wm is"
 dr_moved:       .byte 0                 ; 1 once a drag has moved (undo kept)
 sb_drag:        .byte 0                 ; 1: the scroll bar's thumb is being dragged
 sb_grab:        .byte 0                 ; where on the thumb it was taken

@@ -1,4 +1,4 @@
-renderer65 system design
+Lightsource system design
 ========================
 
 The goal: a scene modeller, a POV-Ray-style scene language and the ray tracer, all running on
@@ -101,7 +101,7 @@ below 32767. Keep the scene within about 120 units of the camera.
 
 ### Lighting
 
-The local colour is tinyraytracer's Phong model, with POV-Ray's names for the weights:
+The local colour is the Phong reflection model, with POV-Ray's names for the weights:
 
     colour = pigment * (ambient * ambient_light + diffuse * sum(light * max(0, N.L)))
            + phong * sum(light * max(0, R.V) ^ phong_size)
@@ -113,7 +113,7 @@ the angle between the spot's axis and the direction to the point, 0 when `c <= c
 falloff)`; then times `c ^ tightness`. A point outside the cone needs no shadow ray.
 
 `specular s roughness q` is read as `phong s phong_size 1/q`. Each pixel is scaled so its
-brightest channel is at most 255, as in tinyraytracer.
+brightest channel is at most 255 (so an over-bright colour keeps its hue).
 
 The screen
 ----------
@@ -208,7 +208,7 @@ The tracer
 Programs and memory
 -------------------
 
-One program, `RENDERER65`, with two modes: the modeller and the renderer. When the code no
+One program, `LIGHTSOURCE`, with two modes: the modeller and the renderer. When the code no
 longer fits below `$C000`, it moves into overlays loaded into attic at boot and copied into
 an overlay window by DMA (the `deluxepaint65` pattern). Until the modeller exists, the
 program renders `SCENE.POV` from the disk at boot and saves `SCENE.IFF`.

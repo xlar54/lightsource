@@ -878,7 +878,7 @@ wk_d:           .byte 0
 wv_d:           .byte 0
 wv_k:           .byte 0
 
-ws_head:        .null "// renderer65 modeller: "
+ws_head:        .null "// Lightsource modeller: "
 ws_global:      .null "global_settings { max_trace_level "
 ws_close_nl:    .text " }"
                 .byte $0a, 0

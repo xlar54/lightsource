@@ -49,13 +49,13 @@ file with a marker per page, then search for register names such as `MIXREGSEL`,
 | `$00600-$007FF` | **Not free**: the C65 keeps sprite shapes there. |
 | `$0FF00-$0FFFF` | KERNAL (book) |
 | `$10000-$11FFF` | **Reserved**: C65 DOS variables and buffers. Disk I/O overwrites it. Never load here. |
-| `$12000-$1F6FF` | BASIC arrays and strings: free once BASIC isn't used. Bank-1 data usually starts at `$12000`. **But the DOS still writes near the top:** renderer65 found the date string (`13-NOV-2026 19:1...`) at `$1F6C4` after disk I/O, inside a table it had put at `$1F000`. Keep data that must survive disk I/O out of `$1F000`-`$1F7FF` (attic is safe). |
+| `$12000-$1F6FF` | BASIC arrays and strings: free once BASIC isn't used. Bank-1 data usually starts at `$12000`. **But the DOS still writes near the top:** Lightsource found the date string (`13-NOV-2026 19:1...`) at `$1F6C4` after disk I/O, inside a table it had put at `$1F000`. Keep data that must survive disk I/O out of `$1F000`-`$1F7FF` (attic is safe). |
 | `$1F700-$1F7FF` | Reserved (book) |
 | `$1F800-$1FFFF` | First 2 KB of colour RAM (a window). A buffer that reaches it garbles the top character rows. |
 | `$40000-$5FFFF` | Free after the takeover; the usual place for framebuffers and boot staging. BASIC65's bitplane graphics live here, and loading through bank 5 overwrites whatever is there (for example sprite shapes at `$5FA00`). |
 
 - Banks 2 and 3 hold the ROM, so a program that keeps BASIC65 resident has chip banks 0, 1, 4 and 5 plus attic.
-- **A framebuffer in `$20000-$3FFFF` (after `rom_unprotect`) wipes the KERNAL and the DOS.** That's fine until the program calls the KERNAL again: the first `kstream` OPEN after the takeover then ran the wiped DOS and hung, with the stack full of BRK frames and the PC in the DOS's `$Cxxx`. renderer65 keeps its second 640x200 buffer in attic instead and DMAs it into the shown one. [Xemu]
+- **A framebuffer in `$20000-$3FFFF` (after `rom_unprotect`) wipes the KERNAL and the DOS.** That's fine until the program calls the KERNAL again: the first `kstream` OPEN after the takeover then ran the wiped DOS and hung, with the stack full of BRK frames and the PC in the DOS's `$Cxxx`. Lightsource keeps its second 640x200 buffer in attic instead and DMAs it into the shown one. [Xemu]
 - A 320x200 FCM framebuffer is 64000 bytes and fits one bank. 640x200x8 fits in `$40000-$5F3FF`; 640x400x8 (256 KB) doesn't fit in banks 4-5.
 - Real hardware doesn't clear RAM at power-on; Xemu does. Clear the base page and every uninitialised variable at boot. Test with Xemu `-initattic <8 MB random file>`.
 
@@ -270,7 +270,7 @@ Dan Sanderson's recommended default model:
 - An `asl`/`tax` index wraps past 127 entries: use separate lo/hi tables.
 - Multi-byte `adc`/`sbc`/`rol`/`ror` loops: count with `dey`/`dex`, never a compare, which changes carry.
 - Never keep a loop counter in A/X/Y (or a library `tmp`) across a `jsr` you don't control: use memory or `phx`/`plx`. Make helpers preserve the caller's registers on every path, including the miss path.
-- **`PLA`/`PLX`/`PLY`/`PLZ` set N and Z from the value pulled.** A helper that saves Z around `lda [ptr],z` and ends `plz / rts` returns the flags of Z, not of A: every caller's `beq`/`bne` then tests the wrong thing (renderer65's tokenizer saw end-of-file at the first character). End with `ora #0`.
+- **`PLA`/`PLX`/`PLY`/`PLZ` set N and Z from the value pulled.** A helper that saves Z around `lda [ptr],z` and ends `plz / rts` returns the flags of Z, not of A: every caller's `beq`/`bne` then tests the wrong thing (Lightsource's tokenizer saw end-of-file at the first character). End with `ora #0`.
 - BCD decimal mode works (handy for scores).
 - `bra` (2 bytes) can replace a `jmp` (3 bytes) when patching code in place.
 - The CPU stack can be 16-bit and outside page 1. Put it back on page 1 for KERNAL calls.
@@ -286,7 +286,7 @@ Dan Sanderson's recommended default model:
 
 Code that touches the `$D7xx` registers must not run from a window mapped over I/O.
 
-- The multiplier is **unsigned**. For a signed 32x32 product, take the unsigned one and subtract B from bits 32-63 if A < 0, and A if B < 0. For 16.16 fixed point the result is bytes `+2..+5`, so only the top 16 bits need the correction (`src/fix.asm` `fmul` in renderer65). [Xemu, bit-exact against a Python model over a whole ray-traced image]
+- The multiplier is **unsigned**. For a signed 32x32 product, take the unsigned one and subtract B from bits 32-63 if A < 0, and A if B < 0. For 16.16 fixed point the result is bytes `+2..+5`, so only the top 16 bits need the correction (`src/fix.asm` `fmul` in Lightsource). [Xemu, bit-exact against a Python model over a whole ray-traced image]
 - The divider is unsigned and exact in Xemu: `DIVOUT` = floor(A * 2^32 / B). For 16.16, `(|a| << 16) / |b|` is bytes `+2..+5` of `|a| / |b|`. An integer square root by Newton iteration on the divider (`g' = (g + N/g) / 2` from a power of two above the root, stop when it stops falling) gives the exact floor in a few iterations. [Xemu]
 
 The multiplier's output is live: `MULTOUT` changes as soon as an input does. To feed a product into the divider, read all its bytes into registers or temporaries first. `lda MULTOUT / sta MULTINA / lda MULTOUT+1 / sta MULTINA+1` reads the second byte from a different product.
@@ -300,7 +300,7 @@ The multiplier's output is live: `MULTOUT` changes as soon as an input does. To 
   `(ADDR & $ff) != 0`. A DMA from attic then read `$FF`s from the wrong bank.
 - 64tass emits the 45GS02's 16-bit relative branches by itself when a branch is out of range, and labels inside a `.macro` are local to each expansion: big unrolled macros are fine.
 - Because a `.macro` is a scope of its own, a macro that branches to a label it's given (`BGTQ a, b, _skip`) can't see the caller's `_local` labels ("not defined symbol"). Write those as `.segment` ... `.endsegment`, which works like a macro without a new scope. Anonymous `+`/`-` passed in work either way.
-- `--cbm-prg` only takes 16-bit addresses. Sections at physical `$100000`+ (overlays with `.logical`) need `--flat`, and `--flat --output-section=X` writes from address 0, not from the section's start: cut the front off afterwards (renderer65's `tools/cut.py`).
+- `--cbm-prg` only takes 16-bit addresses. Sections at physical `$100000`+ (overlays with `.logical`) need `--flat`, and `--flat --output-section=X` writes from address 0, not from the section's start: cut the front off afterwards (Lightsource's `tools/cut.py`).
 - A bare word on a line is a label, so a mistyped or non-existent no-operand instruction assembles without complaint and does nothing. `tzx` isn't a 45GS02 instruction (use `tza` / `tax`), and the only symptom was wrong behaviour at run time.
 
 - Symbols are **case-insensitive by default** (`tool_fill` clashes with `TOOL_FILL`). `-C` makes them case-sensitive.
@@ -398,7 +398,7 @@ The multiplier's output is live: `MULTOUT` changes as soon as an input does. To 
 ### Hardware sprites
 
 - Coordinates are VIC sprite coordinates: in H320, the top-left visible pixel is X = 24, Y = 50. X low bytes `$D000+2n`, Y `$D001+2n`; the 9th X bit in `$D010`, more MSBs in `$D05F`/`$D077`/`$D078` (read-modify-write to keep other sprites' bits).
-- **Real hardware shows sprites 16 px further left than Xemu.** Detect real hardware with `$D60F` bit 5 and correct for it.
+- **In H320, real hardware shows sprites 16 px further left than Xemu.** Detect real hardware with `$D60F` bit 5 and correct for it. **In H640 (`$D031` bit 7) they agree: don't correct.** Lightsource's 640-wide GUI applied the +16 and the pointer sat 16 px right of the clicks on hardware, so it couldn't reach the left edge. `lib/hwsprite.asm` `hws_place` skips the correction at H640.
 - 16-bit sprite pointers: `$D06E` bit 7 (so `$80`) enables; the table base is `$D06C/$D06D`; each entry = data address / 64 (64-byte aligned).
 - `$D01B` priority: bit clear = in front of the characters. `$D01D` X-expand. A 24-px sprite shows 16 px by leaving the third byte 0.
 - `$D06B` is the 16-colour sprite enable (despite some code calling it a charset register). 16-colour sprites are 16 px wide, 8 bytes a row, high nibble = left pixel. The transparent nibble is `$D027+n`, so set it to 0. Colour c of sprite n is entry n*16+c of the sprite palette bank (`$D070` bits 2-3). After the takeover the screen used bank 3 (`$D070` = `$FF`), so bank 1 is free for sprites.
@@ -538,15 +538,15 @@ The multiplier's output is live: `MULTOUT` changes as soon as an input does. To 
 - IRQ-resident code (sound engines) can't be swapped out while hooked.
 - Re-DMAing a 4 KB overlay per keystroke is cheap. One-time init code can live in an overlay.
 - [?] An attic mirror path (`$801xxxx`) written back with enhanced DMA corrupted memory once; a CPU copy loop worked.
-- **One assembly for everything** (renderer65): the resident part and every overlay are sections of one source, each overlay at its own physical address (`$100000`, `$110000`, ...) with `.logical` at the window, and `build.bat` writes each section to its own file. Every label is shared, so resident code calls overlay routines by name and nothing goes out of step. The catch: nothing stops one overlay from naming another overlay's variable, whose address is then the current overlay's own code. renderer65's recolouring used the tracer's `px_y` and rewrote itself (all the pixels wrong, 260 times slower). Check for cross-references whenever code moves between overlays.
+- **One assembly for everything** (Lightsource): the resident part and every overlay are sections of one source, each overlay at its own physical address (`$100000`, `$110000`, ...) with `.logical` at the window, and `build.bat` writes each section to its own file. Every label is shared, so resident code calls overlay routines by name and nothing goes out of step. The catch: nothing stops one overlay from naming another overlay's variable, whose address is then the current overlay's own code. Lightsource's recolouring used the tracer's `px_y` and rewrote itself (all the pixels wrong, 260 times slower). Check for cross-references whenever code moves between overlays.
 - Overlay buffers declared with `.fill` and nothing after them aren't in the file. Zero each overlay's attic slot before loading it, so the window always starts clean.
-- **Two overlays that call each other** (renderer65's modeller, overlays 4 and 6): a resident `ovl_far` reads its target from the bytes after the `jsr` (`jsr ovl_far / .byte overlay / .word routine`, a `FAR` macro), pushes the caller's overlay number, swaps, calls, swaps back and returns past the bytes. The swap writes the window back to its attic slot before it copies the other in, so both keep their variables and calls can nest (4 -> 6 -> 4 -> 6 works). Keep A, X, Y and the flags going through both ways, and use fixed DMA lists, not the base-page pointers a copy routine uses, so the callee's arguments survive. Don't write back after disk work that may have used the window: reload fresh from attic as before. A swap is two 20 KB DMA copies, which didn't show in a redraw's timing.
-- Data both overlays use (a value the panel edits through a pointer) has to be resident. A script that lists every identifier in one overlay's files that names a label defined in the other's (renderer65's `private/tools/ovl_check.py`) catches the rest: the assembler can't, with one symbol table. Check resident routines the second overlay calls, too: they mustn't use the first overlay's labels.
-- Room for a split came from resident code that only one overlay calls (renderer65's grid drawing): move it into that overlay once the overlay has room.
-- **A small render inside a GUI screen:** renderer65's material editor traces a preview into a window while its menus stay on screen. The GUI keeps palette entries 0-15, the preview uses a 6x6x6 cube at 16-231 (dithered), and swatches use spare entries above. Sampling every 3rd pixel of every 3rd line of the full picture keeps the picture's shape (same scale both ways). The base page had no room left, so the editor borrows pointers the tracer also uses and sets them again after each preview.
-- **An overlay's variables don't survive a plain reload.** When resident code loads another overlay and then reloads the caller's fresh from attic (no write-back), every variable the caller changed since its image was last stored is back to its old value. renderer65's modeller read its command byte after a file command and got a stale one, so a cancelled load left an undo step behind. Keep anything needed across such a call resident.
-- **`ldq` loads X and Y too** (Q is A, X, Y, Z), so a `#MOVQ`-style macro between setting an index register and using it destroys it. renderer65's spotlight cone lost its edge lines that way: set X and Y after the Q moves.
-- **Text past the window's end:** an overlay's file can go on past the window (`.fill OVL_END - *` then the data, or a `.section` in the source collected there by `.dsection`). `ovl_load` copies only the window, so the rest stays in attic, and the overlay DMAs the piece it needs into a small buffer. renderer65's modeller help lines and parser error messages (about 1.2 KB, freeing room for spotlights) live this way; keep the pointer table in the window, pointing at the logical addresses past `OVL_END`, and subtract `OVL_BASE` for the attic offset.
+- **Two overlays that call each other** (Lightsource's modeller, overlays 4 and 6): a resident `ovl_far` reads its target from the bytes after the `jsr` (`jsr ovl_far / .byte overlay / .word routine`, a `FAR` macro), pushes the caller's overlay number, swaps, calls, swaps back and returns past the bytes. The swap writes the window back to its attic slot before it copies the other in, so both keep their variables and calls can nest (4 -> 6 -> 4 -> 6 works). Keep A, X, Y and the flags going through both ways, and use fixed DMA lists, not the base-page pointers a copy routine uses, so the callee's arguments survive. Don't write back after disk work that may have used the window: reload fresh from attic as before. A swap is two 20 KB DMA copies, which didn't show in a redraw's timing.
+- Data both overlays use (a value the panel edits through a pointer) has to be resident. A script that lists every identifier in one overlay's files that names a label defined in the other's (Lightsource's `private/tools/ovl_check.py`) catches the rest: the assembler can't, with one symbol table. Check resident routines the second overlay calls, too: they mustn't use the first overlay's labels.
+- Room for a split came from resident code that only one overlay calls (Lightsource's grid drawing): move it into that overlay once the overlay has room.
+- **A small render inside a GUI screen:** Lightsource's material editor traces a preview into a window while its menus stay on screen. The GUI keeps palette entries 0-15, the preview uses a 6x6x6 cube at 16-231 (dithered), and swatches use spare entries above. Sampling every 3rd pixel of every 3rd line of the full picture keeps the picture's shape (same scale both ways). The base page had no room left, so the editor borrows pointers the tracer also uses and sets them again after each preview.
+- **An overlay's variables don't survive a plain reload.** When resident code loads another overlay and then reloads the caller's fresh from attic (no write-back), every variable the caller changed since its image was last stored is back to its old value. Lightsource's modeller read its command byte after a file command and got a stale one, so a cancelled load left an undo step behind. Keep anything needed across such a call resident.
+- **`ldq` loads X and Y too** (Q is A, X, Y, Z), so a `#MOVQ`-style macro between setting an index register and using it destroys it. Lightsource's spotlight cone lost its edge lines that way: set X and Y after the Q moves.
+- **Text past the window's end:** an overlay's file can go on past the window (`.fill OVL_END - *` then the data, or a `.section` in the source collected there by `.dsection`). `ovl_load` copies only the window, so the rest stays in attic, and the overlay DMAs the piece it needs into a small buffer. Lightsource's modeller help lines and parser error messages (about 1.2 KB, freeing room for spotlights) live this way; keep the pointer table in the window, pointing at the logical addresses past `OVL_END`, and subtract `OVL_BASE` for the attic offset.
 
 ---
 
@@ -581,14 +581,14 @@ The multiplier's output is live: `MULTOUT` changes as soon as an input does. To 
 
 - **Disk I/O:** KERNAL I/O from a custom MAP works in Xemu and hangs HYPPO on hardware. Test disk I/O on hardware.
 - **Timing:** IRQ races on cold autoload and some CIA edge cases differ.
-- **Sprite X:** about 16 px; see `$D60F` bit 5.
+- **Sprite X:** about 16 px in H320, none in H640; see `$D60F` bit 5.
 - **CHARPTR at boot**, and the font in WOM on hardware.
 - **STZ on VIC-IV registers.**
 - **RAM at power-on:** random on hardware, zero in Xemu.
 - **Mid-frame TEXTXPOS changes:** Xemu ignores them.
 - **Writes to unmapped addresses:** Xemu logs "Unhandled memory write" with the address and PC; hardware silently loses them.
 
-**RUN again after returning to BASIC doesn't reload the program.** Its data is as the last run left it: flags like `inited` stay set, so set-up is skipped, while the KERNAL has reset the VIC (renderer65's mouse pointer came back as garbage: the sprite pointers were the KERNAL's `` again). renderer65 keeps a copy of its resident part as loaded in attic on the first start (a byte that is 0 in the file says which start this is) and copies it back on every later start, before anything else.
+**RUN again after returning to BASIC doesn't reload the program.** Its data is as the last run left it: flags like `inited` stay set, so set-up is skipped, while the KERNAL has reset the VIC (Lightsource's mouse pointer came back as garbage: the sprite pointers were the KERNAL's table at screen + `$7F8` again). Lightsource keeps a copy of its resident part as loaded in attic on the first start (a byte that is 0 in the file says which start this is) and copies it back on every later start, before anything else.
 
 When something works in Xemu and not on hardware, suspect the environment (MAP, `$01`, `$D030`, IRQ state, hardcoded boot values) before the logic. Save and restore boot state rather than hardcoding it.
 
@@ -612,7 +612,7 @@ When something works in Xemu and not on hardware, suspect the environment (MAP, 
   - `b` breakpoints didn't stop the CPU, but `t1`/`t` single-stepping from a hold point did.
 - **BASIC 65's `LOADIFF` opens only PRG files.** An IFF saved as SEQ (`,S,W`) gives
   `?FILE OPEN` (error 2), even with nothing else open; the same bytes as a PRG load and show,
-  palette and all. renderer65 saves its pictures with `,P,W`.
+  palette and all. Lightsource saves its pictures with `,P,W`.
 - **Keys poked into the KERNAL buffer reach the `READY.` prompt but not a running program's
   `INPUT`** (in Xemu: the count at `$D0` goes back to 0 and nothing is typed). To test a BASIC
   program's later steps, build a copy with the answers filled in.
@@ -620,7 +620,7 @@ When something works in Xemu and not on hardware, suspect the environment (MAP, 
 - Each poke or peek over the monitor takes about 0.3 s, which is many frames. Give the program a frame-timed input script (pairs of joystick bits and frame counts played into a `dbg_joy` byte) instead of timing pokes. In sleepless mode, idle timers run out within seconds; use real-time mode to catch timed animations.
 - Expose `dbg_*` bytes and state bytes to poke and peek. Count the frames actually drawn as well as the frame counter. A per-tick trace buffer (x/y/state per logic tick) helps compare against expected motion. A program can also copy its text output to attic for the harness to read.
 - Measure the frame rate in real-time mode by reading a frame counter twice, a few seconds apart.
-- **Testing maths-heavy code:** write a bit-exact Python model of the integer arithmetic (the same truncations in the same order), then compare a whole screen at once. Boot headless, poll a `done` byte over uartmon, exit with `-dumpmem f`, and compare the framebuffer bytes in the dump with the model. renderer65's `private/tools/rt_test.py` does this for 128,000 pixels in seconds, and the model doubles as the spec. Peeks are too slow for bulk data.
+- **Testing maths-heavy code:** write a bit-exact Python model of the integer arithmetic (the same truncations in the same order), then compare a whole screen at once. Boot headless, poll a `done` byte over uartmon, exit with `-dumpmem f`, and compare the framebuffer bytes in the dump with the model. Lightsource's `private/tools/rt_test.py` does this for 128,000 pixels in seconds, and the model doubles as the spec. Peeks are too slow for bulk data.
 - **Profiling:** sample the PC with the uartmon `r` command while the program runs and map each address to the nearest label (`private/tools/pc_prof.py` reads the `.lst`, so it names overlay code correctly; send `r` raw and read until the register line, about 5 ms a sample instead of 0.3 s). Trust timings over samples:
   - **In sleepless mode the samples follow host time, not emulated time.** A DMA costs Xemu far more host time than emulated time, so code right after a DMA trigger showed 25% of the samples while the copy really cost 5%. Real-time mode is closer but still over-weighted it about 4x.
   - **Xemu doesn't make attic RAM slower than chip RAM:** moving a hot copy from attic to chip RAM changed nothing in Xemu (it should help on hardware).

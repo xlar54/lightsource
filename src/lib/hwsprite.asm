@@ -4,7 +4,8 @@
 ;
 ;   hws_init       16-bit sprite pointers from a table in bank 0, all sprites off and
 ;                  in front, platform detected (hws_xfix: real hardware draws sprites
-;                  about 16 px further left than Xemu - $D60F bit 5 tells them apart)
+;                  about 16 px further left than Xemu - $D60F bit 5 tells them apart -
+;                  in H320 modes only: at H640 they agree, so hws_place skips the fix)
 ;   hws_shape      X = sprite, A/Y = shape address lo/hi (bank 0, 64-byte aligned;
 ;                  21 rows x 3 bytes, C64 format). hws_shape_far: A/Y/Z = address
 ;                  bits 0-7 / 8-15 / 16-23 (any chip RAM).
@@ -169,6 +170,8 @@ hws_place:
         lda hws_x+1
         adc #0
         sta tmp4+1
+        bit VIC3_CTRL                   ; H640: real hardware matches Xemu, no fix
+        bmi l_hws_nofix
         clc
         lda tmp4
         adc hws_xfix
@@ -176,6 +179,7 @@ hws_place:
         lda tmp4+1
         adc #0
         sta tmp4+1
+l_hws_nofix:
         clc
         lda hws_y
         adc #HWS_SCREEN_Y

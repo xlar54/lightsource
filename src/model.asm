@@ -166,7 +166,7 @@ _nob:
         beq _loop
         jsr model_event
         bra _loop
-st_hello:       .null "renderer65 modeller - File: Render to see the scene"
+st_hello:       .null "Lightsource modeller - File: Render to see the scene"
 
 ; a new document and views
 model_reset:
@@ -203,14 +203,26 @@ model_event:
         bne +
         jmp model_drag
 +       cmp #EV_UP
-        bne +
+        bne _evr
         lda #$ff
         sta ms_drag
         lda #0
         sta sb_drag
         sta ms_orbit
         sta ms_aim
-+       rts
+        lda dr_moved                    ; a part of the selected group, clicked without a
+        bne _nopart                     ; move: that part is selected
+        lda ms_part
+        cmp #$ff
+        beq _evr
+        sta ms_sel
+        lda #$ff
+        sta ms_part
+        jmp redraw_work
+_nopart:
+        lda #$ff
+        sta ms_part
+_evr:   rts
 _down:
         lda #0
         sta dr_moved
@@ -442,6 +454,14 @@ _cam:
         lda #$80
         sta pk_i
         jsr pk_try
+        lda ms_sel                      ; the camera selected: where it looks has a handle
+        cmp #$80                        ; ($90)
+        bne _nolook
+        #VMOV doc_cam_look, pk_w
+        lda #$90
+        sta pk_i
+        jsr pk_try
+_nolook:
         lda ms_aimfor                   ; View, Aim light: this click says where
         cmp #$ff
         beq +
@@ -458,14 +478,45 @@ _cam:
         jmp redraw_work                 ; (elsewhere: nothing changes. Not "bne +": a +
 +       jmp cam_orbit_start             ;  label further on would catch it)
 _picked:
-        ldx #0                          ; a spotlight's aim point: the light, its aim dragged
+        ; a part of the selected group: the group is dragged (a click that doesn't move
+        ; picks the part instead: model_event, EV_UP)
+        ldx #$ff
+        stx ms_part
+        cmp #DOC_MAXOBJ
+        bcs _aimpt
+        ldx ms_sel
+        cpx #DOC_MAXOBJ
+        bcs _aimpt
+        cmp ms_sel
+        beq _aimpt
+        bcc _aimpt                      ; (before it: not inside it)
+        sta ms_part
+        lda ms_sel
+        jsr sub_end                     ; A = the first object after the group
+        cmp ms_part
+        beq _outside
+        bcc _outside
+        lda ms_sel                      ; inside: the group
+        bra _aimpt
+_outside:
+        lda ms_part
+        ldx #$ff
+        stx ms_part
+_aimpt: ldx #0                          ; a spotlight's aim point: the light, its aim dragged
+        cmp #$90                        ; (the camera's look point: the camera, that dragged)
+        bne _notlook
+        lda #$80
+        inx
+        bra _setaim
+_notlook:
         cmp #$60
-        bcc +
+        bcc _setaim
         cmp #$70
-        bcs +
+        bcs _setaim
         and #$4f
         inx
-+       stx ms_aim
+_setaim:
+        stx ms_aim
         sta ms_sel
         lda ms_dview                    ; drag it from here (not in the camera view)
         cmp #3
@@ -529,6 +580,7 @@ st_aimedl:      .null "The spotlight aims at it"
 st_noaiml:      .null "Aim light: nothing there, nothing changed"
 ap_l:           .byte 0
 pk_sel:         .byte 0                 ; the selection, if a click was within its reach
+ms_part:        .byte $ff               ; a part of the selected group, pressed on (EV_UP)
 
 ; pk_w (world) seen in view ms_dview: if it's nearer the click than pk_bd, pk_i is it
 pk_try:
@@ -644,9 +696,13 @@ sel_pos_ptr:
         cmp #$80
         bne +
         lda #<doc_cam_loc
-        sta lp
-        lda #>doc_cam_loc
-        sta lp+1
+        ldx #>doc_cam_loc
+        ldy ms_aim                      ; (where it looks, while that's being dragged)
+        beq _camlp
+        lda #<doc_cam_look
+        ldx #>doc_cam_look
+_camlp: sta lp
+        stx lp+1
         sec
         rts
 +       cmp #$40

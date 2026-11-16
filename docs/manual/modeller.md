@@ -1,10 +1,10 @@
-% renderer65 Modeller
+% Lightsource Modeller
 % User's manual
-% Draft: screenshots to come
+% Version 0.9
 
 # Introduction
 
-The renderer65 modeller is a 3D scene editor for the MEGA65. You build a scene from simple
+The Lightsource modeller is a 3D scene editor for the MEGA65. You build a scene from simple
 shapes, give them materials, place lights and a camera, and then let the MEGA65 ray-trace
 it into a 640x200 picture in 256 colours. Pictures are saved as IFF files that most image
 programs can open.
@@ -22,13 +22,20 @@ about a minute to tens of minutes, depending on the scene.
 
 ## Starting the modeller
 
-Insert or mount the renderer65 disk and turn the MEGA65 on. The disk starts itself
-(`AUTOBOOT.C65` loads and runs `RENDERER65`). You can also type `RUN "RENDERER65"` at the
+Insert or mount the Lightsource disk and turn the MEGA65 on. The disk starts itself
+(`AUTOBOOT.C65` loads and runs `LIGHTSOURCE`). You can also type `RUN "LIGHTSOURCE"` at the
 `READY.` prompt.
 
 The modeller opens with `DEFAULT.MDL`: an empty scene with a camera, one light and one
 white material. The camera is up and back at (7, 5.5, -9), looking down at the origin,
 which is where new objects go and where the views are centred. If that file isn't on the disk, the same empty scene is built in.
+
+## Which version you have
+
+**Help, About** shows the version number and the date the program was built. Click, or
+press any key, to close it.
+
+[SCREENSHOT: about | Help, About]
 
 ## What you need
 
@@ -80,7 +87,11 @@ Objects are drawn as wireframes: spheres as three circles, boxes as their edges,
 and cones as rings with lines along their sides, planes as a grid, prisms as their outline
 at the top and bottom, and lathes as rings at each point of their profile. The selected
 object is drawn in yellow (all of a group's parts, if a group is selected). Lights are
-orange crosses; the camera is a green cross with a line to the point it looks at.
+orange crosses. The camera is a small green triangle: its point is where the camera is, and
+it opens towards where the camera looks. When the camera is selected it turns yellow and a
+line runs to the point it looks at, ending in a small cross: drag that cross in the top,
+front or side view to change where the camera looks (the camera stays put). (A view the
+camera looks straight along shows a cross for the camera instead of the triangle.)
 
 **One large view:** click a view's name (its top-left corner) to make it fill the whole
 view area. Click the name again to go back to four views.
@@ -92,7 +103,8 @@ view area. Click the name again to go back to four views.
 The list shows everything in the scene, in this order:
 
 - **World**: the background colour and the trace depth (see "World settings").
-- **The objects**, as an outline: the parts of a group are indented under it.
+- **The objects**, as an outline: the parts of a group are indented under it, each with an
+  L before its name, joined into a line down from the group like a tree.
 - **The lights** (Light 1, Light 2, ...).
 - **The camera.**
 
@@ -133,9 +145,12 @@ Click near an object's centre, a light or the camera in any view. The nearest on
 few pixels is selected. You can also click names in the object list.
 
 What is already selected comes first: a click within reach of it keeps it selected (and
-drags it), even when something else is nearer. A group's parts are often at the group's
-own centre, so this lets you drag a group you picked in the list. To pick one of its parts
-instead, click its name in the list.
+drags it), even when something else is nearer.
+
+**Groups:** with a group selected (all its parts drawn yellow), press on any of its parts,
+however deep inside, and drag: the whole group moves. SHIFT-drag turns the whole group and
+CTRL-drag scales it, the same way. To work on one part instead, click it without moving
+the mouse: that part becomes selected. (Clicking its name in the list does the same.)
 
 ## Moving things
 
@@ -410,7 +425,8 @@ To aim it:
 
 ## The camera
 
-Select **Camera** in the list. Its settings:
+Select **Camera** in the list (or click it in a view). Drag it to move it, or drag the
+cross at the end of its line to change where it looks. Its settings:
 
 | Field | Meaning |
 |---|---|
@@ -503,7 +519,7 @@ after loading it, so a plain **Save** never overwrites `DEFAULT.MDL` by accident
 
 | File | What it is |
 |---|---|
-| TINYRAY.MDL | Four spheres (ivory, glass, rubber, mirror) over a checker board |
+| SPHERES.MDL | Five balls (glass, gold, jade, chrome and coral) on a tiled floor at dusk |
 | MEGA65.MDL | The word MEGA65 in prisms, with glass balls, gold cones and a mirror ball |
 | JUGGLER.MDL | A robot juggling three mirror balls over a checker floor |
 | CHESS.MDL | A king, a rook and a knight on a board: lathes, boxes and a prism |
@@ -545,6 +561,7 @@ read `.POV` files back.
 | Add | Sphere, Box, Cylinder, Cone, Plane, Prism, Lathe, Light, Spotlight, Union, Merge, Intersection, Difference |
 | Material | Next, Previous, New (a copy), Edit, Save to file..., Load from file... |
 | View | Zoom in, Zoom out, Locate, Reset, Aim camera, Aim light..., Camera front, Camera top, Camera side, Snap, Grid |
+| Help | About... |
 
 [SCREENSHOT: menus | The menus, open]
 
@@ -570,7 +587,7 @@ must stay below 32767. Keep the scene within about 120 units of the camera.
 
 - **Speckled surfaces:** two surfaces in exactly the same place (a box's bottom resting on a
   plane at the same height, say) fight over which is seen. Lift one a little.
-- **Glass and shadows:** glass casts a full shadow, as in the original tinyraytracer. For a
+- **Glass and shadows:** glass casts a full shadow (shadow rays don't pass through it). For a
   lighter look, use a second light with **No shadow**.
 - **Glass looks dark:** raise **Trace** in the world settings so rays get through more
   surfaces (each costs time).

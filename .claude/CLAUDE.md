@@ -223,8 +223,8 @@ Then install your own `$FFFE` IRQ.
   beam is below line 256 moves the IRQ to a line that doesn't exist, and it never fires again.
   It depends on timing: it can show up only when bigger assets change the boot time.
   Mask bit 7 and OR in `(>IRQ_LINE) << 7`, as `lib/video_fcm.asm` does.
-- Hardware sprite X differs between Xemu and real hardware by about 16 px. `lib/hwsprite.asm`
-  handles it with the `$D60F` bit 5 check (set on real hardware).
+- Hardware sprite X differs between Xemu and real hardware by about 16 px in H320 (none in
+  H640). `lib/hwsprite.asm` handles it with the `$D60F` bit 5 check (set on real hardware).
 - The default `video_fcm` layout uses screen RAM at `$0800`, `$1000` and `$C800`, so the program
   must end below `$C800`.
 - `$D06B` is the 16-colour-sprite enable, not a charset register (some code mislabels it).

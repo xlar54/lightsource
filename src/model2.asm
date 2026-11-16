@@ -108,20 +108,23 @@ _l:
         inc dv_i
         bra _l
 _cam:
-        lda dv_v                        ; the camera: a cross, and a line to where it looks
-        cmp #3
+        lda dv_v                        ; the camera: a triangle pointing where it looks;
+        cmp #3                          ; selected, a line to that point too
         beq _name
         lda #GC_GREEN
+        sta d6_col
         ldx ms_sel
         cpx #$80
-        bne +
+        bne _camicon
         lda #GC_YELLOW
-+       sta d6_col
-        #VMOV doc_cam_loc, pj_w
-        jsr mark_cross
+        sta d6_col
         #VMOV doc_cam_loc, sg_wa
         #VMOV doc_cam_look, sg_wb
         jsr seg_world
+        #VMOV doc_cam_look, pj_w        ; and a handle there, to drag where it looks
+        jsr mark_cross
+_camicon:
+        jsr cam_icon
 _name:
         jsr d6_clip_all
         ldx dv_v
@@ -365,6 +368,112 @@ vw_clip:
         lda d6_y1
         sta d6_cy1
         rts
+
+; the camera in view dv_v (top, front or side): a triangle, its point at the camera and its
+; open end towards where it looks, CM_LEN pixels long however far that is. Everything is in
+; the view's two world axes (a across, b up), so the projection keeps it the right shape.
+; Looking (nearly) along the view's own axis, there's no direction to show: a cross.
+CM_LEN          = 16                    ; pixels, at any zoom
+cam_icon:
+        #VSUB doc_cam_look, doc_cam_loc, camic_v
+        ldx dv_v                        ; a, b = the direction's parts across and up
+        lda vw_ha,x
+        asl
+        asl
+        tax
+        ldy #0
+-       lda camic_v,x
+        sta camic_a,y
+        inx
+        iny
+        cpy #4
+        bne -
+        ldx dv_v
+        lda vw_va,x
+        asl
+        asl
+        tax
+        ldy #0
+-       lda camic_v,x
+        sta camic_b,y
+        inx
+        iny
+        cpy #4
+        bne -
+        #FMUL camic_a, camic_a, tq            ; its length in the view
+        #FMUL camic_b, camic_b, camic_t
+        #ADDQ tq, camic_t, tq
+        jsr fsqrt
+        stq camic_l
+        #BLEQ camic_l, q_cimin, _cross
+        lda dv_v                        ; k = (CM_LEN / zoom) / length: a, b to that size
+        jsr vw_zoom
+        #FDIV q_cilen, tq, camic_t
+        #FDIV camic_t, camic_l, camic_t
+        #FMUL camic_a, camic_t, camic_a
+        #FMUL camic_b, camic_t, camic_b
+        #FMUL camic_b, q_cihalf, camic_pa     ; half the open end, square to it: (-b, a) / 2
+        #FMUL camic_a, q_cihalf, camic_pb
+        #SUBQ camic_a, camic_pa, camic_da        ; one corner: (a - b/2, b + a/2)
+        #ADDQ camic_b, camic_pb, camic_db
+        jsr camic_set
+        #VMOV camic_q, camic_c1
+        #ADDQ camic_a, camic_pa, camic_da        ; the other: (a + b/2, b - a/2)
+        #SUBQ camic_b, camic_pb, camic_db
+        jsr camic_set
+        #VMOV doc_cam_loc, sg_wa        ; its three sides
+        #VMOV camic_c1, sg_wb
+        jsr seg_world
+        #VMOV doc_cam_loc, sg_wa
+        #VMOV camic_q, sg_wb
+        jsr seg_world
+        #VMOV camic_c1, sg_wa
+        #VMOV camic_q, sg_wb
+        jmp seg_world
+_cross: #VMOV doc_cam_loc, pj_w
+        jmp mark_cross
+; camic_q = the camera's place + camic_da across and camic_db up (in view dv_v's axes)
+camic_set:
+        #VMOV doc_cam_loc, camic_q
+        ldx dv_v
+        lda vw_ha,x
+        asl
+        asl
+        tax
+        clc
+        .for si = 0, si < 4, si += 1
+        lda camic_q,x
+        adc camic_da+si
+        sta camic_q,x
+        inx
+        .next
+        ldx dv_v
+        lda vw_va,x
+        asl
+        asl
+        tax
+        clc
+        .for si = 0, si < 4, si += 1
+        lda camic_q,x
+        adc camic_db+si
+        sta camic_q,x
+        inx
+        .next
+        rts
+q_cilen:        .dint ONE * CM_LEN
+q_cihalf:       .dint ONE / 2
+q_cimin:        .dint ONE / 64
+camic_v:           .fill 12
+camic_q:           .fill 12
+camic_c1:          .fill 12
+camic_a:           .dword 0
+camic_b:           .dword 0
+camic_t:           .dword 0
+camic_l:           .dword 0
+camic_pa:          .dword 0
+camic_pb:          .dword 0
+camic_da:          .dword 0
+camic_db:          .dword 0
 
 ; a small + at the world point pj_w
 mark_cross:

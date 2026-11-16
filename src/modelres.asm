@@ -117,6 +117,11 @@ gui_menus:
         .byte CMD_GRID
         .null "Grid"
         .byte 0
+        .byte 41
+        .null "Help"
+        .byte CMD_ABOUT
+        .null "About..."
+        .byte 0
         .byte 0
 
 ;---------------------------------------------------------------------------------------

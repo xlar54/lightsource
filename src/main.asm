@@ -1,5 +1,5 @@
 ;=======================================================================================
-; renderer65 - a ray tracer for the MEGA65, after ssloy/tinyraytracer, reading scenes in
+; Lightsource - a ray tracer for the MEGA65, reading scenes in
 ; a subset of POV-Ray's language (docs/DESIGN.md).
 ;
 ; 640x200, 256 colours (Full Colour Mode, lib/fcm640.asm). The program is a resident part
@@ -30,6 +30,8 @@
         .include "platform.asm"
         .include "lib/zp.asm"
         .include "zp.asm"
+        .include "version.asm"          ; (constants only)
+        .include "gen/build.asm"
 
         .weak
 DBG_ROWS        = 0
@@ -594,6 +596,7 @@ ovl4_end:
         .word 0
         .logical OVL_BASE
         .include "modelpanel.asm"
+        .include "about.asm"
         .cerror * > OVL_END, "overlay 6 is too big: ", format("$%04x", *)
 ovl6_end:
         .fill OVL_END - *, 0            ; (the file goes on past the window: help lines that

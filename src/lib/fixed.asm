@@ -26,7 +26,7 @@
 ; .virtual block in zp.asm.
 ;
 ; 64tass 1.60 has ldq/stq/adq/sbq/cpq/anq/orq/eoq but not the Q shifts: they are the
-; $42 $42 prefix on the 8-bit opcodes, emitted here as bytes. renderer65 tested all of it
+; $42 $42 prefix on the 8-bit opcodes, emitted here as bytes. Lightsource tested all of it
 ; bit-exact against a Python model (private/tools/ref_trace.py there) in Xemu.
 ;=======================================================================================
 

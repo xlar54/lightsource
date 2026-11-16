@@ -1,4 +1,4 @@
-// Every primitive and boolean: a test scene for renderer65.
+// Every primitive and boolean: a test scene for Lightsource.
 
 global_settings { max_trace_level 3  ambient_light rgb 1 }
 background { color rgb <0.1, 0.12, 0.2> }

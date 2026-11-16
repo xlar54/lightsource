@@ -125,6 +125,30 @@ Modeller: still to do
   of redrawing the screen (tested: the screen after all of them matches one without them).
 - [x] File, Exit (back to BASIC through kstream; tested in Xemu: READY. comes back).
 - [x] Show / hide each object in the views (a box in the list; tested in Xemu: hiding a group hides its parts, hidden objects aren't picked).
+- [ ] Groups grabbed by their parts (not committed yet): with a group selected, pressing on
+  any part inside it (at any depth) drags, SHIFT-turns or CTRL-scales the whole group; a
+  click on a part without moving selects the part. Tested in Xemu: a union with three
+  boxes (moved by its third box, turned 20 by SHIFT, scaled by CTRL from its second; the
+  boxes' own values unchanged; a click picked the second box), and a box two groups deep
+  moving and turning the outer union.
+- [ ] The camera as a triangle (not committed yet): green, pointing from the camera
+  towards where it looks; the line to that point only while it is selected (a cross when it
+  looks along the view's axis). Seen in Xemu, selected and not. Selected, a cross at the
+  look point drags it (pick code $90, ms_aim): tested in Xemu (the look point moved, the
+  camera didn't; the camera still drags; undo).
+- [ ] Help, About and the manual's screenshots (not committed yet): a Help menu with
+  About... (the version from `src/version.asm`, the build date from `tools/build_info.py`,
+  in a box closed by a click or a key; overlay 6). The manual's 15 screenshots are made by
+  `private/tools/manual_shots.py` in Xemu (renders, crops, the labelled overview, the menus
+  sheet, VIEWER on a copy of the disk). Seen in Xemu; not tried on hardware.
+- [ ] Pointer on real hardware (not committed yet): at H640 the +16 sprite-X correction
+  put the pointer 16 px right of the clicks, so it couldn't reach File. `hws_place` now
+  skips it at H640. Xemu checked (pointer reaches the left edge with the correction forced
+  on); **needs a check on hardware**.
+- [ ] The object list as a tree (not committed yet): an L before each indented name,
+  joined into a line from the group down to its last part (seen in Xemu on CHESS). To make
+  room, Indent / Outdent's keep-in-place maths moved to overlay 6 (`kp_before`,
+  `kp_after`, through `#FAR`): overlay 4 has about 1.3 KB free again.
 - [x] Picking in the views prefers the selection when it is within reach (dragging a union
   picked in the list grabbed a part at its centre instead). Tested in Xemu: a union with a
   box at its centre, dragged 20 pixels: the union moved 2 units, the box's own position
@@ -173,7 +197,7 @@ Was in the plan (kept for reference)
     - file name entry.
   - Render and preview take over the whole screen; a key returns to the modeller. The
     preview is a quick render: fewer pixels, depth 1.
-  - The boot order: start in the modeller, with tinyraytracer's scene as the document. Keep
+  - The boot order: start in the modeller, with the spheres scene as the document. Keep
     the render-at-boot flow for the tests.
 - [ ] Phase 6: animation: `clock` exists in the parser. Keyframes in the modeller; render N
   frames to attic and disk; a playback palette for all the frames together.

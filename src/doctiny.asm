@@ -2,8 +2,8 @@
 ; doctiny.asm - overlay 5: the default document, which File, New and boot start from:
 ; no objects, the camera up and back at (7, 5.5, -9) looking down at the origin (where Add
 ; puts things), one white light, and one plain material for what gets added. It is
-; scenes/default.mdl too (private/tools/make_mdl.py default()). (tinyraytracer's
-; scene, the old default, is scenes/tinyray.mdl.) Only the records it uses are kept here;
+; scenes/default.mdl too (private/tools/make_mdl.py default()). Only the records it uses
+; are kept here;
 ; doc_default clears the rest.
 ;=======================================================================================
 

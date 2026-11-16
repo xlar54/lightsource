@@ -1,7 +1,7 @@
-10 rem renderer65 picture viewer (basic 65): shows the 640x200x256 iff pictures
+10 rem lightsource picture viewer (basic 65): shows the 640x200x256 iff pictures
 20 rem the renderer saves. tokenised by petcat -w65; on the disk as viewer.
 30 bank 128
-40 scnclr:print "renderer65 picture viewer":print
+40 scnclr:print "lightsource picture viewer":print
 50 dir "*.iff"
 60 print:print "type a picture's name and press return (a key goes back),"
 70 print "or just press return to stop."

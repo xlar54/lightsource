@@ -680,6 +680,331 @@ at_s:           .dword 0
 at_c:           .dword 0
 at_k:           .byte 0
 
+;---------------------------------------------------------------------------------------
+; Indent and Outdent keep the object where it is (cmd_depth): kp_before, with the object in
+; A, keeps its world transform and its parent's; kp_after (the depths changed) works out
+; its position, turn and scale in the new parent's frame. Its parts follow it (theirs are
+; relative to it). Matrices are wm's: rows of A at 12 r, t at 36; A = R s (uniform s).
+;   position  p_j = (col_j(P) . (t_O - t_P)) / (col_j(P) . col_j(P))
+;   scale     the old one times |old parent| / |new parent|
+;   turn      unchanged when both parents turn alike; else from N = P^T O (its scale
+;             doesn't matter: A = Rz Ry Rx s, so RX = atan2(N21, N22), RY = atan2(-N20,
+;             sqrt(N00^2 + N10^2)), RZ = atan2(N10, N00))
+;---------------------------------------------------------------------------------------
+kp_before:                              ; (world_all done: wm is up to date)
+        sta kp_i
+        jsr kp_wm
+        ldy #47
+-       lda (pa),y
+        sta kp_o,y
+        dey
+        bpl -
+        jsr kp_frame                    ; the parent's (kp_p), kept as kp_q
+        ldx #47
+-       lda kp_p,x
+        sta kp_q,x
+        dex
+        bpl -
+        rts
+
+kp_after:
+        jsr kp_frame                    ; the new parent's
+        ldx kp_i
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ; the position: p_j = col_j . v / col_j . col_j
+        #VSUB kp_o+36, kp_p+36, kp_v
+        lda #0
+        sta kp_j
+_pos:   jsr kp_pcol                     ; kp_c = column j of P
+        jsr kp_c2d
+        jsr kp_dot
+        stq kp_t2
+        #VMOV kp_v, kp_d
+        jsr kp_dot
+        stq tq
+        #FDIV tq, kp_t2, tq
+        lda kp_j
+        clc
+        adc #O_POS
+        tay
+        jsr kp_store
+        jsr kp_jnext
+        bne _pos
+        ; the two parents' sizes: |col 0|
+        lda #<kp_q
+        ldx #>kp_q
+        jsr kp_len
+        stq kp_sq
+        lda #<kp_p
+        ldx #>kp_p
+        jsr kp_len
+        stq kp_sp
+        ; do they turn alike? (each entry over its size, within 1/256)
+        lda #0
+        sta kp_k
+_alike: ldx kp_k                        ; (the Q macros change X: kp_k counts)
+        ldy #0
+-       lda kp_q,x
+        sta kp_t,y
+        lda kp_p,x
+        sta kp_t2,y
+        inx
+        iny
+        cpy #4
+        bne -
+        #FDIV kp_t, kp_sq, kp_t
+        #FDIV kp_t2, kp_sp, kp_t2
+        #SUBQ kp_t, kp_t2, kp_t
+        #ABSQ kp_t, kp_t
+        #LDIMM ONE / 256, tq
+        #BLTQ kp_t, tq, +
+        jmp _turn
++       lda kp_k
+        clc
+        adc #4
+        sta kp_k
+        cmp #36
+        bne _alike
+        ; alike: the angles stay; the scale times |old| / |new| (if they differ)
+        #SUBQ kp_sq, kp_sp, tq
+        #BEQZ tq, _done
+        ldy #O_SCALE
+        jsr kp_load
+        #FMUL kp_t, kp_sq, kp_t
+        #FDIV kp_t, kp_sp, tq
+        ldy #O_SCALE
+        jsr kp_round
+_done:  rts
+_turn:  ; N = P^T O: N[i][j] = col_i(P) . col_j(O) (at kp_n + 12 i + 4 j)
+        lda #0
+        sta kp_j
+_ni:    lda #0
+        sta kp_k
+_nj:    jsr kp_pcol                     ; column i of P
+        jsr kp_c2d
+        lda #<kp_o                      ; column j of O
+        ldx #>kp_o
+        ldy kp_k
+        jsr kp_colof
+        jsr kp_dot
+        stq kp_t
+        lda kp_j                        ; 12 i + 4 j = 3 (4 i) + 4 j
+        asl
+        clc
+        adc kp_j
+        adc kp_k
+        tax
+        ldy #0
+-       lda kp_t,y
+        sta kp_n,x
+        inx
+        iny
+        cpy #4
+        bne -
+        lda kp_k
+        clc
+        adc #4
+        sta kp_k
+        cmp #12
+        bne _nj
+        jsr kp_jnext
+        bne _ni
+        ; RY = atan2(-N20, sqrt(N00^2 + N10^2))
+        #FMUL kp_n, kp_n, tq
+        #FMUL kp_n+12, kp_n+12, kp_t
+        #ADDQ tq, kp_t, tq
+        jsr fsqrt
+        stq at_x
+        #NEGQ kp_n+24, at_y
+        jsr kp_atan
+        ldy #O_ROT + 4
+        jsr kp_round
+        #LDIMM 64, tq                   ; (straight up or down: RZ 0, RX from the rest)
+        #BLTQ at_x, tq, _gimbal
+        #MOVQ kp_n+28, at_y             ; RX = atan2(N21, N22)
+        #MOVQ kp_n+32, at_x
+        jsr kp_atan
+        ldy #O_ROT
+        jsr kp_round
+        #MOVQ kp_n+12, at_y             ; RZ = atan2(N10, N00)
+        #MOVQ kp_n, at_x
+        jsr kp_atan
+        ldy #O_ROT + 8
+        jsr kp_round
+        bra _scale
+_gimbal:
+        #NEGQ kp_n+20, at_y             ; RX = atan2(-N12, N11)
+        #MOVQ kp_n+16, at_x
+        jsr kp_atan
+        ldy #O_ROT
+        jsr kp_round
+        #MOVQ q_zero, tq
+        ldy #O_ROT + 8
+        jsr kp_round
+_scale: lda #<kp_o                      ; the scale: |O| / |new parent|
+        ldx #>kp_o
+        jsr kp_len
+        stq kp_t
+        #FDIV kp_t, kp_sp, tq
+        ldy #O_SCALE
+        jmp kp_round
+
+; kp_c = column kp_j / 4 of kp_p; kp_colof: of the matrix at A/X, column Y / 4
+kp_pcol:
+        lda #<kp_p
+        ldx #>kp_p
+        ldy kp_j
+kp_colof:
+        sty kp_t
+        clc
+        adc kp_t
+        sta _s+1
+        txa
+        adc #0
+        sta _s+2
+        ldx #11
+-       ldy kp_offs,x
+_s:     lda $ffff,y                     ; (self-modified)
+        sta kp_c,x
+        dex
+        bpl -
+        rts
+kp_offs:        .byte 0, 1, 2, 3, 12, 13, 14, 15, 24, 25, 26, 27
+kp_c2d:
+        ldx #11
+-       lda kp_c,x
+        sta kp_d,x
+        dex
+        bpl -
+        rts
+; Q = kp_c . kp_d
+kp_dot:
+        #DOT kp_c, kp_d, tq
+        rts
+; kp_j += 4; Z set at 12
+kp_jnext:
+        lda kp_j
+        clc
+        adc #4
+        sta kp_j
+        cmp #12
+        rts
+; kp_p = the world transform of object kp_i's parent (the nearest one before it a level
+; up), or the identity at the top level
+kp_frame:
+        ldx #47
+        lda #0
+-       sta kp_p,x
+        dex
+        bpl -
+        lda #1
+        sta kp_p+2
+        sta kp_p+16+2
+        sta kp_p+32+2
+        ldx kp_i
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        ldy #O_DEPTH
+        lda (op),y
+        beq _r
+        sec
+        sbc #1
+        sta kp_t
+-       dex
+        bmi _r
+        lda obj_lo,x
+        sta op
+        lda obj_hi,x
+        sta op+1
+        lda (op),y
+        cmp kp_t
+        bne -
+        txa
+        jsr kp_wm
+        ldy #47
+-       lda (pa),y
+        sta kp_p,y
+        dey
+        bpl -
+_r:     rts
+
+; Q = atan2(at_y, at_x) (degrees): overlay 6's fatan2 (at_x, at_y, at_r are resident)
+kp_atan:
+        jsr fatan2
+        ldq at_r
+        rts
+
+; Q = |column 0| of the matrix at A/X
+kp_len:
+        ldy #0
+        jsr kp_colof
+        jsr kp_c2d
+        jsr kp_dot
+        jmp fsqrt
+; kp_round: tq to the nearest 1/256 (angles and scales come back whole, not 29.99997),
+; then kp_store
+kp_round:
+        lda tq
+        clc
+        adc #$80
+        bcc +
+        inc tq+1
+        bne +
+        inw tq+2
++       lda #0
+        sta tq
+; tq -> the object's dword at Y; kp_t <- it
+kp_store:
+        ldx #0
+-       lda tq,x
+        sta (op),y
+        iny
+        inx
+        cpx #4
+        bne -
+        rts
+kp_load:
+        ldx #0
+-       lda (op),y
+        sta kp_t,x
+        iny
+        inx
+        cpx #4
+        bne -
+        rts
+
+kp_i:           .byte 0
+kp_k:           .byte 0
+kp_j:           .byte 0
+kp_o:           .fill 48                ; the object's world transform (before)
+kp_q:           .fill 48                ; its old parent's
+kp_p:           .fill 48                ; its new parent's
+kp_n:           .fill 36
+kp_v:           .fill 12
+kp_c:           .fill 12
+kp_d:           .fill 36
+kp_t:           .dword 0
+kp_t2:          .dword 0
+kp_sq:          .dword 0
+kp_sp:          .dword 0
+
+; pa = object A's world transform in wm (model3.asm: the modeller's buffers at $0800)
+KP_WM           = $0800 + 48 * 10
+kp_wm:
+        tax
+        lda kp_wml,x
+        sta pa
+        lda kp_wmh,x
+        sta pa+1
+        rts
+kp_wml:         .byte <(KP_WM + range(DOC_MAXOBJ) * 48)
+kp_wmh:         .byte >(KP_WM + range(DOC_MAXOBJ) * 48)
+
 ; help_prompt: X = a property field (prop_click) -> A/X = what it means (its help line,
 ; modelhelp.asm, copied from this overlay's file in attic: the line's number is the byte before the
 ; field's label)

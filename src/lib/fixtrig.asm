@@ -1,10 +1,10 @@
 ;=======================================================================================
 ; lib/fixtrig.asm - sine and cosine in 16.16 fixed point, of an angle in degrees: whole
-; degrees from a table, linear in between (renderer65's parser and modeller; bit-exact
+; degrees from a table, linear in between (Lightsource's parser and modeller; bit-exact
 ; with private/tools/fxmath.py fsin_deg).
 ;
 ;   fsin_deg / fcos_deg   fs_a = the angle (16.16 degrees; changed) -> Q
-; Needs lib/fixed.asm. FT_PTR: a base-page word it may change (default ptr0; renderer65
+; Needs lib/fixed.asm. FT_PTR: a base-page word it may change (default ptr0; Lightsource
 ; sets it to lp, because its parser keeps the text pointer in ptr0).
 ;=======================================================================================
 

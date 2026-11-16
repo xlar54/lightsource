@@ -1,4 +1,4 @@
-// Prisms: outlines in the x-z plane, extruded along y. A test scene for renderer65.
+// Prisms: outlines in the x-z plane, extruded along y. A test scene for Lightsource.
 
 global_settings { max_trace_level 3  ambient_light rgb 1 }
 background { color rgb <0.1, 0.12, 0.2> }

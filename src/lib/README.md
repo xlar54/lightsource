@@ -40,7 +40,7 @@ little-mega-people.
 | `fixtrig.asm` | fixed | `fsin_deg` / `fcos_deg`: sine and cosine of an angle in degrees (16.16), whole degrees from a table and linear in between. `FT_PTR`: a base-page word it may change (default `ptr0`) |
 | `math.asm` | – | `mul16`, `div16` (hardware), `rand`, `rand_seed_hw` (hardware RNG, bounded wait) |
 
-For a DOS-style text interface (menus, dialogs, a file dialog, mouse, per-cell colours), see the template's `src/lib/tui/README.md` (renderer65 doesn't use it: its modeller is graphical, `gui.asm` on `draw640.asm`).
+For a DOS-style text interface (menus, dialogs, a file dialog, mouse, per-cell colours), see the template's `src/lib/tui/README.md` (Lightsource doesn't use it: its modeller is graphical, `gui.asm` on `draw640.asm`).
 
 ## Default memory layout
 
