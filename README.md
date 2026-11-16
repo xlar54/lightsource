@@ -324,6 +324,12 @@ unmodified so that the project builds without installing anything else. Their li
 them, not to this project. `src/lib/font8.asm` is cut from the IBM PC CGA ROM font (public
 domain), by way of the MEGA65 template's `src/lib/tui/tui_font.asm`.
 
+Licence
+-------
+
+Lightsource is free software, released under the GNU General Public License, version 3 (see
+[LICENSE](LICENSE)). The bundled tools above keep their own licences.
+
 Note: this is a 45GS02 target. `STZ` stores the Z register, not zero. See
 `docs/MEGA65_NOTES.md` for MEGA65 programming notes, and `.claude/CLAUDE.md` for the short
 list of gotchas.
