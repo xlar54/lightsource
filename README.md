@@ -40,8 +40,8 @@ It lists the disk's `.IFF` files; type a name and press RETURN to see it on a 64
 The modeller
 ------------
 
-The user's manual is [docs/modeller-manual.pdf](docs/modeller-manual.pdf) (a draft: the
-screenshots are placeholders). Its text is [docs/manual/modeller.md](docs/manual/modeller.md);
+The user's manual is [docs/Lightsource-Users Guide.pdf](<docs/Lightsource-Users Guide.pdf>).
+Its text is [docs/manual/modeller.md](docs/manual/modeller.md);
 `private/tools/make_manual.py` builds the PDF (it needs reportlab), putting in any
 `docs/manual/shots/NAME.png` it finds.
 
@@ -181,7 +181,7 @@ Build and run
 - `run.bat` builds and starts Xemu.
 - The version number is `LS_VERSION` in `src/version.asm` (0.9 now). `tools/build_info.py`
   writes the build date into `src/gen/build.asm` on every build. Help, About shows both.
-- The manual, `docs/modeller-manual.pdf`, is made from `docs/manual/modeller.md` and the
+- The manual, `docs/Lightsource-Users Guide.pdf`, is made from `docs/manual/modeller.md` and the
   screenshots in `docs/manual/shots/`.
 
 At boot the program starts the modeller. A test build with `-D DBG_BOOTRENDER=1` renders
